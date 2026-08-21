@@ -1,0 +1,1900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>isiBheqe Card Builder</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0e0d12; --sur:#15141b; --sur2:#1d1c26; --bdr:#2a2838;
+  --acc:#f5a623; --txt:#e4e0f0; --dim:#7a7490; --dimmer:#3d3a50;
+  --grn:#4ade80; --red:#f87171;
+  --mono:'JetBrains Mono',monospace; --sans:'Syne',system-ui,sans-serif; --r:8px;
+}
+html,body{height:100%;background:var(--bg);color:var(--txt);font-family:var(--sans);font-size:14px;overflow:hidden}
+#app{display:grid;grid-template-rows:52px 1fr auto;height:100vh}
+
+#toolbar{display:flex;align-items:center;gap:10px;padding:0 16px;background:var(--sur);border-bottom:1px solid var(--bdr);flex-shrink:0;overflow-x:auto}
+#logo{font-size:13px;font-weight:800;letter-spacing:.18em;text-transform:uppercase;color:var(--acc);flex-shrink:0}
+.sep{width:1px;height:24px;background:var(--bdr);margin:0 2px;flex-shrink:0}
+.tlbl{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--dim);white-space:nowrap}
+
+select,input[type=text]{
+  font-family:var(--sans);font-size:12px;background:var(--sur2);
+  border:1px solid var(--bdr);color:var(--txt);padding:6px 10px;
+  border-radius:var(--r);outline:none;
+}
+select{appearance:none;padding-right:24px;cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237a7490'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 8px center}
+select:focus,input[type=text]:focus{border-color:var(--acc)}
+
+.btn{font-family:var(--sans);font-size:12px;font-weight:600;padding:6px 12px;
+  border-radius:var(--r);border:1px solid var(--bdr);background:var(--sur2);
+  color:var(--txt);cursor:pointer;letter-spacing:.03em;transition:all .15s;white-space:nowrap}
+.btn:hover{border-color:var(--acc);color:var(--acc)}
+.btn-acc{background:var(--acc);border-color:var(--acc);color:#0e0d12}
+.btn-acc:hover{background:#f0b84a;border-color:#f0b84a;color:#0e0d12}
+.btn-sm{font-size:11px;padding:4px 9px}
+
+#workspace{display:grid;grid-template-columns:320px 1fr;overflow:hidden;min-height:0}
+#left-pane{display:flex;flex-direction:column;border-right:1px solid var(--bdr);min-height:0;overflow-y:auto}
+.pane-head{display:flex;align-items:center;justify-content:space-between;
+  padding:7px 14px;border-bottom:1px solid var(--bdr);background:var(--sur);
+  font-size:10px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--dim);flex-shrink:0}
+.pane-head .hint{text-transform:none;letter-spacing:0;font-weight:400;color:var(--acc);font-size:11px}
+#left-pane .pane-head{position:sticky;top:0;z-index:5}
+
+.kb{display:flex;flex-wrap:wrap;gap:4px;padding:10px 12px}
+.key{width:38px;height:52px;background:var(--sur2);border:1px solid var(--bdr);
+  border-radius:6px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:all .12s;padding:2px}
+.key:hover{border-color:var(--acc);background:#241f16}
+.key canvas{max-width:100%;max-height:100%;filter:invert(88%)}
+.kb-lbl{padding:8px 14px 2px;font-size:10px;font-weight:700;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--dimmer)}
+
+#right-pane{display:flex;flex-direction:column;min-height:0;overflow-y:auto}
+#right-pane > *{flex-shrink:0}
+#strip-area{padding:18px 16px;min-height:120px}
+#strip{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start}
+.syl{display:flex;flex-direction:column;align-items:center;gap:6px;
+  background:var(--sur);border:1px solid var(--bdr);border-radius:var(--r);
+  padding:8px 6px 7px;position:relative}
+.syl.gap{background:transparent;border:1px dashed var(--dimmer);align-self:stretch;min-width:26px;justify-content:center}
+.syl canvas{filter:invert(88%);height:72px;width:auto}
+.syl input{width:64px;text-align:center;font-family:var(--mono);font-size:12px;
+  background:var(--sur2);border:1px solid var(--bdr);color:var(--acc);
+  border-radius:5px;padding:4px 2px;outline:none}
+.syl input:focus{border-color:var(--acc)}
+.syl .idx{position:absolute;top:2px;left:5px;font-size:9px;color:var(--dimmer);font-family:var(--mono)}
+.empty-hint{color:var(--dimmer);font-size:13px;padding:24px 4px;line-height:1.7}
+
+.meta{padding:12px 16px;display:grid;background:var(--bg);
+  grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+.fld{display:flex;flex-direction:column;gap:4px}
+.fld label{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
+
+#code-row{padding:10px 16px;border-top:1px solid var(--bdr);display:flex;gap:8px;align-items:stretch;background:var(--bg)}
+#code{flex:1;background:var(--bg);border:1px solid var(--bdr);color:var(--dim);
+  font-family:var(--mono);font-size:11px;padding:8px;border-radius:var(--r);
+  resize:vertical;min-height:52px;outline:none;line-height:1.6}
+#code:focus{border-color:var(--acc);color:var(--txt)}
+
+#preview-wrap{padding:16px;border-top:1px solid var(--bdr);display:flex;justify-content:center;background:#0a090d}
+#preview-stack{position:relative;max-width:340px;width:100%}
+#card-canvas{display:block;width:100%;height:auto;border-radius:10px;border:1px solid var(--bdr)}
+#card-overlay{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
+
+#footer{flex-shrink:0;border-top:1px solid var(--bdr);padding:10px 16px;
+  background:var(--sur);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+#status{font-size:11px;color:var(--dim);margin-left:auto;font-family:var(--mono)}
+#status.ok{color:var(--grn)} #status.err{color:var(--red)}
+
+#explainer{position:fixed;inset:0;background:rgba(8,7,11,.93);z-index:50;display:none;overflow-y:auto;padding:40px 20px}
+#explainer.on{display:block}
+#exp-box{max-width:820px;margin:0 auto;background:var(--sur);border:1px solid var(--bdr);
+  border-radius:14px;padding:30px 36px 40px;line-height:1.65}
+#exp-box h2{font-size:20px;color:var(--acc);margin-bottom:6px}
+#exp-box h3{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--acc);
+  margin:26px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--bdr)}
+#exp-box p{margin-bottom:10px;font-size:13.5px}
+#exp-box .muted{color:var(--dim);font-size:12.5px}
+#exp-box code{font-family:var(--mono);font-size:12px;background:var(--bg);color:var(--acc);
+  padding:2px 6px;border-radius:4px;border:1px solid var(--bdr)}
+#exp-box pre{font-family:var(--mono);font-size:11.5px;background:var(--bg);color:var(--dim);
+  padding:11px 13px;border-radius:var(--r);border:1px solid var(--bdr);overflow-x:auto;margin:8px 0 12px;white-space:pre-wrap}
+.uc{border-left:2px solid var(--dimmer);padding:2px 0 2px 14px;margin-bottom:14px}
+.uc b{color:var(--txt);font-size:13.5px;display:block;margin-bottom:3px}
+.uc span{color:var(--dim);font-size:12.5px}
+#exp-close{float:right;margin:-6px -10px 0 0}
+.warn{border-left:2px solid var(--acc);padding:8px 0 8px 14px;margin:12px 0;color:var(--dim);font-size:12.5px}
+
+/* colour-coded code view: colour marks position within a word, resetting after
+   each space, so you can count syllables to find the one you want */
+#code-view{font-family:var(--mono);font-size:12px;line-height:2.1;background:var(--bg);
+  border:1px solid var(--bdr);border-radius:var(--r);padding:9px 10px;margin-bottom:8px;
+  word-break:break-all;max-height:190px;overflow-y:auto}
+.cu{padding:2px 3px;border-radius:3px;cursor:pointer;position:relative;white-space:nowrap;
+  border:1px solid transparent}
+.cu:hover{outline:1px solid var(--acc)}
+.cu.sel{background:var(--acc);color:#0e0d12 !important;font-weight:600}
+.cu.bad{background:#5c1f1f;color:#ffb4b4 !important;border-color:var(--red)}
+.cu-n{color:var(--dimmer);font-size:9px;vertical-align:super;margin-right:1px;user-select:none}
+.cw0{color:#f5a623} .cw1{color:#5ec8f0} .cw2{color:#7ee787} .cw3{color:#e88bd0}
+.cw4{color:#f0d264} .cw5{color:#b18cf0}
+.cbrk{color:var(--dimmer);padding:2px 1px}
+.syl.sel{outline:2px solid var(--acc)}
+#code-tools{display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap}
+.meta.hidden{display:none}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="toolbar">
+    <span id="logo">isiBheqe Card Builder</span>
+    <span class="sep"></span>
+    <button class="btn btn-sm" id="undo">Undo</button>
+    <button class="btn btn-sm" id="space">Space</button>
+    <button class="btn btn-sm" id="clear">Clear</button>
+    <span class="sep"></span>
+    <button class="btn btn-sm" id="load-code">Load pasted code</button>
+    <button class="btn btn-sm" id="open-file">Open a saved file…</button>
+    <input type="file" id="file-input" accept=".json,.txt,application/json" style="display:none">
+    <span class="sep"></span>
+    <button class="btn btn-sm btn-acc" id="open-exp">? How to use this</button>
+    <span id="status"></span>
+  </div>
+
+  <div id="workspace">
+
+    <div id="left-pane">
+      <div class="pane-head"><span>Keyboard</span><span class="hint">click a shape to add it</span></div>
+      <div class="kb-lbl">Vowels &amp; syllabic nasals</div>
+      <div class="kb" id="kb-vowels"></div>
+      <div class="kb-lbl">Modifiers</div>
+      <div class="kb" id="kb-mods"></div>
+      <div class="kb-lbl">Consonants</div>
+      <div class="kb" id="kb-cons"></div>
+    </div>
+
+    <div id="right-pane">
+      <div class="pane-head"><span>Syllabemes &amp; Latin</span><span id="syl-count"></span><span id="cap-note" style="margin-left:10px"></span></div>
+      <div id="strip-area">
+        <div id="strip"></div>
+      </div>
+
+      <div id="code-row">
+        <div id="code-tools">
+          <span class="tlbl">Code string</span>
+          <button class="btn btn-sm" id="cv-toggle">Hide colour view</button>
+          <span class="tlbl" id="cv-legend" style="color:var(--dimmer)">colour = position in the word &middot; click a unit to jump to it</span>
+        </div>
+        <div id="code-view"></div>
+        <textarea id="code" spellcheck="false" placeholder="The code string appears here as you build. You can also paste one in from isibheqe.org.za/demo and press Load pasted code."></textarea>
+      </div>
+
+      <div class="pane-head" style="border-top:1px solid var(--bdr)"><span>Entry details</span><span><span class="hint" id="meta-hint">fill these in — they print on the card</span><button class="btn btn-sm" id="meta-toggle" style="margin-left:10px">Hide</button></span></div>
+      <div class="meta">
+        <div class="fld"><label>Language</label><input type="text" id="f-lang" placeholder="which language? e.g. Tshivenda"></div>
+        <div class="fld"><label>Full Latin (fills itself)</label><input type="text" id="f-latin" placeholder="builds itself from the boxes above"></div>
+        <div class="fld"><label>Gloss (English)</label><input type="text" id="f-gloss" placeholder="what does it mean? e.g. Good morning"></div>
+        <div class="fld"><label>Round</label><input type="text" id="f-round" value="seed"></div>
+        <div class="fld"><label>Scribe</label><input type="text" id="f-scribe" placeholder="who rendered it? e.g. Bandile"></div>
+        <div class="fld"><label>Entry id</label><input type="text" id="f-id" placeholder="short file name, e.g. seed-01"></div>
+      </div>
+
+      
+
+      <div id="preview-wrap"><div id="preview-stack">
+        <canvas id="card-canvas" width="1080" height="1080"></canvas>
+        <canvas id="card-overlay" width="1080" height="1080"></canvas>
+      </div></div>
+    </div>
+  </div>
+
+  <div id="footer">
+    <button class="btn btn-acc" id="dl-card">Download card as an image (PNG)</button>
+    <button class="btn" id="copy-card">Copy card to clipboard (paste into WhatsApp)</button>
+    <span class="sep"></span>
+    <button class="btn" id="dl-svg">Download card as an SVG image</button>
+    <span class="sep"></span>
+    <button class="btn" id="dl-json">Download editable record (JSON)</button>
+    <button class="btn" id="copy-code">Copy code string (for isibheqe.org.za/demo)</button>
+    <span class="sep"></span>
+    <span class="tlbl">card bg</span>
+    <select id="card-bg"><option value="cream">cream</option><option value="white">white</option></select>
+  </div>
+</div>
+
+
+<div id="explainer"><div id="exp-box">
+  <button class="btn btn-sm" id="exp-close">Close</button>
+  <h2>How to use this</h2>
+  <p class="muted">This page makes a card from an isiBheqe phrase and writes the Latin syllable under each shape. Seeing the shape and its syllable together is what helps someone learn to read the script.</p>
+
+  <h3>What you can do here</h3>
+  <div class="uc"><b>1 &middot; Build a new entry from scratch</b><span>Click shapes on the keyboard to spell out the phrase. Each syllabeme gets a box under it. Type its Latin syllable in that box. Fill in the Entry details, then export.</span></div>
+  <div class="uc"><b>2 &middot; Bring in a code string from the original demo, using &ldquo;Load pasted code&rdquo;</b><span>If a phrase was typed at isibheqe.org.za/demo, paste its code string into the box near the bottom and press <b>Load pasted code</b>. The glyphs appear here with empty Latin boxes, ready to fill in.</span></div>
+  <div class="uc"><b>3 &middot; Re-open a saved record and change it</b><span>Press <b>Open a saved file…</b> and choose a JSON file. The glyphs, Latin syllables, language, gloss and scribe all come back. Change what you need to and export again.</span></div>
+  <div class="uc"><b>4 &middot; Hand a half-finished entry to someone else</b><span>Download the JSON at any point and send it on. Whoever opens it carries on from where you stopped. This lets one person draw the glyphs and another supply the Latin for a language they know.</span></div>
+  <div class="uc"><b>5 &middot; Make a picture for WhatsApp</b><span><b>Copy card to clipboard</b>, then paste it into a chat. If copying does not work, use <b>Download card as an image</b> instead. The card is square, sized for WhatsApp and Status.</span></div>
+  <div class="uc"><b>6 &middot; Make a version for print</b><span><b>Download card as an SVG image</b> gives a vector file. Its glyphs stay sharp at any size, so you can put the same entry into a printed phrasebook later without building it again.</span></div>
+  <div class="uc"><b>7 &middot; Send the phrase back to the original demo</b><span><b>Copy code string</b> puts the phrase on your clipboard in the form isibheqe.org.za/demo reads. Paste it there to check the rendering against the original tool.</span></div>
+  <div class="uc"><b>8 &middot; Check someone&rsquo;s work syllable by syllable</b><span>Each shape sits directly above its own Latin box, so you can tell exactly which syllable is wrong instead of only sensing that the phrase is off.</span></div>
+
+  <h3>What a &ldquo;code string&rdquo; is</h3>
+  <p>A code string writes the script as plain text. It is a list in square brackets, one item per syllable. Each item is the vowel, then the marks on it.</p>
+  <pre>["a",["k"]]            the vowel a, plus the mark k         &rarr;  ka
+["a",["k","•","w"]]    the vowel a, plus k, plus •, plus w   &rarr;  kwa
+"a"                    a bare vowel with no marks at all    &rarr;  a</pre>
+  <p>A whole phrase puts those items inside one outer pair of brackets, with <code>" "</code> standing for the space between words:</p>
+  <pre>[["i",["n"]]," ",["a",["°"]],["ɛ",["ʃ"]]]</pre>
+  <p class="muted">Being plain text, a code string travels inside a message or a spreadsheet cell, and rebuilds into the same glyphs wherever it lands. That is why the saved record keeps it.</p>
+
+  <h3>Two things worth knowing</h3>
+  <div class="warn"><b>There is no &ldquo;m&rdquo; mark.</b> Nasals use the <code>°</code> modifier, so <i>ma</i> is <code>["a",["°"]]</code>, not <code>["a",["m"]]</code>. If you type a mark the engine does not know, it drops it without warning.</div>
+  <div class="warn"><b>You type the Latin yourself because it depends on the language.</b> The same glyph is <i>sha</i> in isiZulu and <i>xa</i> in Xitsonga. The tool cannot know which you mean, and a guess would bury the very difference worth showing. Always set the Language field.</div>
+
+  <h3>If something looks wrong</h3>
+  <p class="muted">The note beside the syllabeme count tells you whether the card fits at full size, was scaled down, or has become too small to read. If it warns about size, split the phrase across two cards.</p>
+  <p class="muted">In the code string below the card, any syllable the engine cannot read sits on a red background. The engine drops marks it does not know without complaining, so that red highlight is the only place a bad mark shows itself.</p>
+  <p class="muted">If a pasted code string will not load, the message says what is wrong: a missing bracket, a curly quote, or the number of the syllable that is malformed. A long phrase edited by hand usually loses a <code>]</code> somewhere in the middle, so look there first.</p>
+</div></div>
+
+<script>/* ===== isibheqe-glyphs.js ===== */
+
+BASE = 16;
+HEIGHT = 13.8;
+TONE = HEIGHT / 3.5;
+THETA = Math.atan(HEIGHT / (BASE / 2.0));
+
+var Point = function(x, y) {
+	this.x = x;
+	this.y = y;
+}
+
+Point.prototype.scale = function(m) {
+	return new Point(this.x * m, this.y * m);
+}
+
+Point.prototype.translate = function(p) {
+	return new Point(this.x + p.x, this.y + p.y);
+}
+
+Point.prototype.difference = function(p) {
+	return new Point(this.x - p.x, this.y - p.y);	
+}
+
+Point.prototype.mid = function(p) {
+	return new Point((this.x + p.x) / 2.0, (this.y + p.y) / 2.0);
+}
+
+var Glyph = function(origin, apex, base) {
+	this.origin = origin;
+	this.apex = apex;
+	this.base = base;
+	this.margin = 0;
+	if(this.base.x === this.origin.x) { // vertical
+		this.unit = (base.y - origin.y) / BASE;
+		this.kerning = function() {
+			return this.top() + BASE * this.unit + this.bottom();
+		}
+		if(this.apex.x > this.origin.x) { // dy = +y
+			this.zero = 0 * Math.PI;
+			this.move = function(a, b) {
+				return a.translate(new Point(b.y, b.x));
+			}
+			this.padding = function() {
+				return this.bottom();
+			}
+		} else { // dy = -y
+			this.zero = 1 * Math.PI;
+			this.move = function(a, b) {
+				return a.translate(new Point(-b.y, -b.x));
+			}
+			this.padding = function() {
+				return this.top();
+			}
+		}
+	} else { // horizontal
+		this.unit = (base.x - origin.x) / BASE;
+		this.kerning = function() {
+			return BASE * this.unit + this.padding();
+		}		
+		if(this.apex.y < this.origin.y) { // dy = +x
+			this.zero = 1.5 * Math.PI;
+			this.move = function(a, b) {
+				return a.translate(new Point(b.x, b.y));
+			}
+			this.padding = function() {
+				return this.left();
+			}
+		} else {	// dy = -x
+			this.zero = 0.5 * Math.PI;
+			this.move = function(a, b) {
+				return a.translate(new Point(b.x, -b.y));
+			}
+			this.padding = function() {
+				return 0;
+			}
+		}
+	}
+	this.unit = Math.abs(this.unit);
+	this.data = [];
+	this.vowel = "";
+	this.vowelData = "";
+	this.consonants = [];
+}
+
+Glyph.prototype.addLine = function(a, b) {
+	this.data.push(new Array(a,b));
+}
+
+Glyph.prototype.addArc = function(centre, radius, start, end) {
+	this.data.push(new Array(centre.x, centre.y, radius, start, end));
+}
+
+Glyph.prototype.addCircle = function(centre, radius) {
+	this.data.push(new Array(centre.x, centre.y, radius, 0, Math.PI * 2.0));
+}
+
+Glyph.prototype.fillCircle = function(centre, radius) {
+	this.data.push(new Array(centre.x, centre.y, radius));
+}
+
+Glyph.prototype.renderOn = function(canvas) {
+	for(var i = 0; i < this.data.length; i++) {
+		if (this.data[i].length === 2) {
+			canvas.drawLine.apply(canvas, this.data[i]);
+		} else if (this.data[i].length === 5) {
+			canvas.drawArc.apply(canvas, this.data[i]);
+		} else if (this.data[i].length === 3) {
+			canvas.fillCircle.apply(canvas, this.data[i]);
+		}
+
+	}
+}
+
+Glyph.prototype.top = function() {
+	if(this.consonants.indexOf("f") >= 0) {
+		return 5 * this.unit;
+	}
+	if(this.consonants.indexOf("n̪") >= 0 || this.consonants.indexOf("n") >= 0 || this.consonants.indexOf("ɲ") >= 0 || this.consonants.indexOf("ŋ") >= 0 || this.consonants.indexOf("°") >= 0 || this.consonants.indexOf("~") >= 0) {
+		return 2 * TONE * this.unit;
+	}
+	return 0;
+}
+
+Glyph.prototype.bottom = function() {
+	if(this.consonants.indexOf("j") >= 0) {
+		return 6 * this.unit;
+	}
+	if((this.consonants.indexOf("n̪") >= 0 || this.consonants.indexOf("n") >= 0 || this.consonants.indexOf("ɲ") >= 0 || this.consonants.indexOf("ŋ") >= 0 || this.consonants.indexOf("°") >= 0 ) && this.consonants.indexOf("~") >= 0) {
+		return 2 * TONE * this.unit;
+	}
+	return 0;
+}
+
+Glyph.prototype.left = function() {
+	if (this.consonants.indexOf("l̩") >= 0 && this.consonants.indexOf("l") >= 0) {
+		return 4 * this.unit;				
+	}
+	if (this.consonants.indexOf("l") >= 0) {
+		return 2 * this.unit;				
+	}
+	return 0;
+}
+
+Glyph.prototype.setMargin = function() {
+	if (this.margin !== this.padding()) {
+		this.translate(new Point(this.padding() - this.margin, 0));
+		this.margin = this.padding();
+	}
+}
+
+Glyph.prototype.solidVowel = function() {
+	this.addLine(this.origin,this.apex);
+	this.addLine(this.apex, this.base);
+	this.addLine(this.origin, this.base);
+	this.vowelData = this.data.slice();
+}
+
+Glyph.prototype.openVowel = function() {
+	this.addLine(this.origin,this.apex);
+	this.addLine(this.apex, this.base);
+	this.vowelData = this.data.slice();
+}
+
+Glyph.prototype.vector = function(a, b) {
+	var origin = new Point(0,0);
+	var point = a.difference(b);
+	return this.move(origin, point);
+}
+
+Glyph.prototype.midBase = function() {
+	return this.origin.mid(this.base);
+}
+
+Glyph.prototype.translate = function(p) { 
+	this.origin = this.origin.translate(p);
+	this.apex = this.apex.translate(p);
+	this.base = this.base.translate(p);
+	for(var i = 0; i < this.data.length; i++) {
+		if (this.data[i].length === 2) {
+			this.data[i][0] = this.data[i][0].translate(p);
+			this.data[i][1] = this.data[i][1].translate(p);
+		} else if (this.data[i].length === 5 || this.data[i].length === 3) {
+			this.data[i][0] = this.data[i][0] + p.x;
+			this.data[i][1] = this.data[i][1] + p.y;
+		}
+
+	}
+}
+
+Glyph.prototype.addConsonant = function(letter) {
+	if(this.consonants.indexOf(letter) >= 0) { // Don't repeat consonants
+		return;
+	}
+	this.consonants.push(letter);
+	this.data = this.vowelData.slice();
+	for(var i = 0; i < this.consonants.length; i++) {
+		l = this.consonants[i];
+		switch(l) {
+			case "-":
+				if(this.consonants.indexOf("ʃ") === -1 && this.consonants.indexOf("ȿ") === -1){
+					this.addLine(this.midBase(), this.apex);	
+				}
+				break;
+			case "•":
+				var centre = this.move(this.midBase(), this.vector(this.apex, this.midBase()).scale(0.12));
+				var radius = this.unit;
+				if (this.consonants.indexOf("r̩") >= 0) {
+					centre = this.move(centre, this.vector(this.base, this.origin).scale(0.32));
+				} else if (this.consonants.indexOf("-") >= 0) {
+					var h = 0.18;
+					if (this.consonants.indexOf("k") >= 0 || this.consonants.indexOf("|") >= 0 || this.consonants.indexOf("!") >= 0) {
+						h = 0.32;
+					}
+					centre = this.move(centre, this.vector(this.base, this.origin).scale(h));
+				} else if (this.consonants.indexOf("k") >= 0 || this.consonants.indexOf("|") >= 0 || this.consonants.indexOf("!") >= 0) {
+					radius = radius * 0.7;
+				}
+				this.fillCircle(centre, radius);
+				break;
+			case "°":
+				this.setMargin();
+				var h = 0.18;
+				var centre = this.move(this.midBase(), this.vector(this.apex, this.midBase()).scale(1.0 + h));
+				var radius = h * HEIGHT * this.unit;
+				this.addCircle(centre, radius);
+				break;
+			case "~":
+				this.setMargin();
+				var h = 0.18;
+				var centre = this.move(this.midBase(), this.vector(this.apex, this.midBase()).scale(1.0 + h));
+				var radius = h * 0.6 * HEIGHT * this.unit;
+				if (this.consonants.indexOf("n̪") >= 0 || this.consonants.indexOf("n") >= 0 || this.consonants.indexOf("n̩") >= 0 || this.consonants.indexOf("ŋ̩") >= 0 || this.consonants.indexOf("°") >= 0) {
+					centre = this.move(this.apex, this.vector(this.midBase(), this.apex).scale(1.0 + h));
+				}				
+				this.fillCircle(centre, radius);
+				break;
+			case "t":
+				if (this.consonants.indexOf("ʃ") === -1 && this.consonants.indexOf("ȿ") === -1) {
+					var start = this.move(this.origin, this.vector(this.apex, this.origin).scale(1.0/3.0));
+					var end = this.move(this.base, this.vector(this.apex, this.base).scale(1.0/3.0));
+					this.addLine(start, end);
+				}
+				break;
+			case "p":
+				var start = this.move(this.apex, new Point((-1.0/2.0) * BASE * this.unit, 0));
+				var end = this.move(this.apex, new Point((1.0/2.0) * BASE * this.unit, 0));
+				this.addLine(start, end);
+				break;
+			case "t̪":
+				var start = this.move(this.origin, this.vector(this.apex, this.origin).scale(0.9/3.0));
+				var end = this.move(this.base, this.vector(this.apex, this.base).scale(0.9/3.0));
+				this.addLine(start, end);
+				start = this.move(this.origin, this.vector(this.apex, this.origin).scale(1.2/3.0));
+				end = this.move(this.base, this.vector(this.apex, this.base).scale(1.2/3.0));
+				this.addLine(start, end);
+				break;
+			case "c":
+				var start = this.origin.mid(this.apex);
+				var end = this.base;
+				this.addLine(start, end);
+				start = this.base.mid(this.apex);
+				end = this.origin;
+				this.addLine(start, end);
+				break;
+			case "k":
+				var origin = this.move(this.origin, this.vector(this.base, this.origin).scale(0.35));
+				var apex = this.move(this.midBase(), this.vector(this.apex, this.midBase()).scale(0.3));
+				var base = this.move(this.origin, this.vector(this.base, this.origin).scale(0.65));
+				this.addLine(origin, apex);
+				this.addLine(apex, base);
+				break;
+			case "ɸ":
+				var centre = this.midBase().mid(this.apex);
+				var startAngle = this.zero + Math.PI / 4.0;
+			    var endAngle = this.zero - Math.PI / 4.0;
+			    var radius = (HEIGHT / 2.0) * this.unit;
+			    this.addArc(centre, radius, startAngle, endAngle);
+			    break;
+			case "f":
+				this.setMargin();
+				var centre = this.move(this.midBase(), this.vector(this.apex, this.midBase()).scale(1.5));
+				var startAngle = this.zero + Math.PI + Math.PI / 4.0;
+			    var endAngle = this.zero + Math.PI - Math.PI / 4.0;
+			    var radius = (HEIGHT / 2.0) * this.unit;
+			    this.addArc(centre, radius, startAngle, endAngle);
+			    break;
+			case "s":
+				var centre = this.apex;			
+				var startAngle = this.zero + Math.PI + Math.PI / 6.0;
+				var endAngle = this.zero + Math.PI - Math.PI / 6.0;
+				var radius = (BASE / 2.0) * this.unit;
+				this.addArc(centre, radius, startAngle, endAngle);
+			    break;
+			case "ʃ":
+				var h = 0.4;
+				var centre = this.move(this.midBase(), this.vector(this.apex, this.midBase()).scale(h));
+				var radius = (TONE / 2.0) * this.unit;
+				this.addCircle(centre, radius);
+				var apex = this.move(centre, this.vector(this.midBase(), centre).scale((TONE * 1.24) / HEIGHT));
+				if(this.consonants.indexOf("t") === -1) {
+					this.addLine(this.origin, apex);
+					this.addLine(apex, this.base);
+				} else {
+					var start = this.move(apex, this.vector(this.origin, this.midBase()).scale(1.07 * h * (HEIGHT / (BASE / 2.0))));
+					var end = this.move(apex, this.vector(this.base, this.midBase()).scale(1.07 * h * (HEIGHT / (BASE / 2.0))));
+					this.addLine(start, end);
+				}
+				if (this.consonants.indexOf("-") >= 0) {
+					this.addLine(this.midBase(), apex);
+				}
+				break;
+			case "ȿ":
+				var h = 0.25;
+				var centre = this.move(this.midBase(), this.vector(this.apex, this.midBase()).scale(h));
+				var radius = (TONE / 2.0) * this.unit;
+				this.addCircle(centre, radius);
+				var apex = this.move(centre, this.vector(this.apex, centre).scale((TONE / 1.3) / HEIGHT));
+				if(this.consonants.indexOf("t") === -1) {
+					var origin = this.move(this.origin, this.vector(this.apex, this.origin).scale(0.6));
+					var base = this.move(this.base, this.vector(this.apex, this.base).scale(0.6));
+					this.addLine(origin, apex);
+					this.addLine(apex, base);
+				} else {
+					var start = this.move(apex, this.vector(this.origin, this.midBase()).scale(h * 2.3));
+					var end = this.move(apex, this.vector(this.base, this.midBase()).scale(h * 2.3));
+					this.addLine(start, end);
+				}
+				if (this.consonants.indexOf("-") >= 0) {
+					this.addLine(this.apex, apex);
+				}
+				break;
+			case "x":
+				var centre = this.midBase();
+				var radius = (BASE * 0.27) * this.unit;
+				var startAngle = this.zero + Math.PI / 2.0;
+				var endAngle = this.zero - Math.PI / 2.0;
+				this.addArc(centre, radius, startAngle, endAngle);
+				break;
+			case "h":
+				var centre = this.move(this.midBase(), this.vector(this.apex, this.midBase()).scale(0.25));
+				var radius = (TONE / 2.2) * this.unit;
+				this.addCircle(centre, radius);
+				break;
+			case "ɬ":
+				var centre = this.base.mid(this.apex);
+				var radius = (BASE / 4.0) * this.unit;
+				var endAngle = this.zero - Math.PI / 6.0;
+				var startAngle = endAngle + Math.PI;
+				this.addArc(centre, radius, startAngle, endAngle);
+				break;
+			case "w":
+				var h = 0.6;
+				if (this.consonants.indexOf("t̪") >= 0 || this.consonants.indexOf("t") >= 0 || this.consonants.indexOf("ɽ") >= 0 ) {
+					h = 0.32;
+				} else if (this.consonants.indexOf("s") >= 0 || this.consonants.indexOf("c") >= 0 || this.consonants.indexOf("x") >= 0 || this.consonants.indexOf("r") >= 0 || this.consonants.indexOf("||") >= 0 || this.consonants.indexOf("ʃ") >= 0 || this.consonants.indexOf("ȿ") >= 0) {
+					h = 0.5;
+				}
+				var a = h * Math.cos(Math.PI / 3.0);
+				var start = this.move(this.origin, this.vector(this.apex, this.origin).scale(h));
+				var end = this.move(this.origin, this.vector(this.base, this.origin).scale(a));
+				this.addLine(start, end);
+				start = this.move(this.base, this.vector(this.apex, this.base).scale(h));
+				end = this.move(this.base, this.vector(this.origin, this.base).scale(a));
+				this.addLine(start, end);
+				break;
+			case "j":
+				this.setMargin();
+				var apex = this.origin.mid(this.base);
+				var p = this.move(apex, this.vector(apex, this.apex).scale(0.6));
+				var end = p.mid(this.origin);
+				this.addLine(end, apex);
+				end = p.mid(this.base);
+				this.addLine(end, apex);
+				break;
+			case "l":
+				this.setMargin();
+				var start = this.move(this.origin, this.vector(this.origin, this.base).scale(0.1));
+				var end = this.move(this.apex, this.vector(this.origin, this.base).scale(0.1));
+				this.addLine(start, end);
+				if (this.consonants.indexOf("l̩") >= 0) {
+					start = this.move(this.origin, this.vector(this.origin, this.base).scale(0.2));
+					end = this.move(this.apex, this.vector(this.origin, this.base).scale(0.2));
+					this.addLine(start, end);
+				}
+				break;
+			case "r":
+				var apex = this.move(this.midBase(), this.vector(this.apex, this.midBase()).scale(0.3));
+				var start = this.move(this.origin, this.vector(this.apex, this.origin).scale(2.0/3.0));
+				var end = this.move(this.base, this.vector(this.apex, this.base).scale(2.0/3.0));
+				this.addLine(start, apex);
+				this.addLine(apex, end);
+				if (this.consonants.indexOf("r̩") >= 0) {
+					this.addLine(this.midBase(), this.origin.mid(this.apex));
+					this.addLine(this.midBase(), this.base.mid(this.apex));
+				}
+				break;
+			case "ɽ":
+				var h = 0.65;
+				var start = this.move(this.apex, this.vector(this.origin, this.apex).scale(h));
+				var end = this.move(this.apex, this.vector(this.base, this.apex).scale(h));
+				this.addLine(start, end);
+				var m = start.mid(end);
+				this.addLine(m, this.apex);
+				break;
+			case "|":
+				var h = 0.6;
+				var a = h * Math.cos(Math.PI / 3.0);
+				var oa = this.move(this.origin, this.vector(this.apex, this.origin).scale(h));
+				var ob = this.move(this.origin, this.vector(this.base, this.origin).scale(a));
+				var ba = this.move(this.base, this.vector(this.apex, this.base).scale(h));
+				var bo = this.move(this.base, this.vector(this.origin, this.base).scale(a));
+				this.addLine(oa, ba);
+				this.addLine(oa, bo);
+				this.addLine(ba, ob);
+				this.addLine(oa.mid(this.origin), ba.mid(this.base));
+				break;
+			case "!":
+				var h = 0.6;
+				var a = h * Math.cos(Math.PI / 3.0);
+				var oa = this.move(this.origin, this.vector(this.apex, this.origin).scale(h));
+				var ob = this.move(this.origin, this.vector(this.base, this.origin).scale(a));
+				var ba = this.move(this.base, this.vector(this.apex, this.base).scale(h));
+				var bo = this.move(this.base, this.vector(this.origin, this.base).scale(a));
+				this.addLine(oa, ba);
+				this.addLine(oa, bo);
+				this.addLine(ba, ob);
+				break;	
+			case "||":
+				var start = this.origin.mid(this.apex);
+				var end = this.move(start, this.vector(this.apex.mid(this.base), start).scale(1.5));
+				this.addLine(start, end);
+				this.addLine(end, this.midBase().mid(this.base));
+				break;
+			case "n̪":
+				this.setMargin();
+				var h = 0.18;
+				var centre = this.move(this.midBase(), this.vector(this.apex, this.midBase()).scale(1.0 + h));
+				var radius = h * HEIGHT * this.unit;
+				this.addCircle(centre, radius);
+				var r = Math.PI / 9;
+				var dx = Math.cos(r) * radius;
+				var dy = Math.sin(r) * radius;
+				var startA = this.move(centre, new Point(dx, dy));
+				var startB = this.move(centre, new Point(-dx, dy));
+				var endA = this.move(centre, new Point(dx, -dy));
+				var endB = this.move(centre, new Point(-dx, -dy));
+				this.addLine(startA, startB);
+				this.addLine(endA, endB);
+				break;
+			case "n":
+				this.setMargin();
+				var h = 0.18;
+				var centre = this.move(this.midBase(), this.vector(this.apex, this.midBase()).scale(1.0 + h));
+				var radius = h * HEIGHT * this.unit;
+				this.addCircle(centre, radius);
+				var start = this.move(centre, new Point(radius, 0));
+				var end = this.move(centre, new Point(-radius, 0));
+				this.addLine(start, end);
+				break;
+			case "ɲ":
+				this.setMargin();
+				var h = 0.18;
+				var centre = this.move(this.midBase(), this.vector(this.apex, this.midBase()).scale(1.0 + h));
+				var radius = h * HEIGHT * this.unit;
+				this.addCircle(centre, radius);
+				var r = Math.PI / 4;
+				var dx = Math.cos(r) * radius;
+				var dy = Math.sin(r) * radius;
+				var endA = this.move(centre, new Point(-dx, dy));
+				var endB = this.move(centre, new Point(dx, dy));
+				this.addLine(endA, centre);
+				this.addLine(centre, endB)
+				break;
+			case "ŋ":
+				this.setMargin();
+				var h = 0.18;
+				var centre = this.move(this.midBase(), this.vector(this.apex, this.midBase()).scale(1.0 + h));
+				var radius = h * HEIGHT * this.unit;
+				this.addCircle(centre, radius);
+				var r = Math.PI / 4;
+				var dx = Math.cos(r) * radius;
+				var dy = Math.sin(r) * radius;
+				var startA = this.move(centre, new Point(dx, dy));
+				var startB = this.move(centre, new Point(-dx, dy))
+				var endA = this.move(centre, new Point(-dx, -dy));
+				var endB = this.move(centre, new Point(dx, -dy));
+				this.addLine(startA, endA);
+				this.addLine(startB, endB);
+				break;
+		}
+	}		
+}
+
+CONSONANTS = ["-", "•", "°", "~", "t", "p", "t̪", "c", "k", "ɸ", "f", "s", "ʃ", "ȿ", "x", "h", "ɬ", "w", "j", "l", "r", "ɽ", "|", "!", "||", "n̪", "n", "ɲ", "ŋ", "l̩", "r̩"];
+
+var GlyphFactory = function(unit) {
+	this.unit = unit;
+}
+
+GlyphFactory.prototype.newVowel = function(letter, origin) {
+	this.baseline = origin.y + (TONE + HEIGHT + 2) * this.unit;
+	this.margin = origin.x;
+	switch (letter) {
+	case 'i':
+		var o = new Point(this.margin, this.baseline);
+		var a = new Point(o.x + (BASE / 2) * this.unit, o.y - HEIGHT * this.unit);
+		var b = new Point(o.x + BASE * this.unit, o.y);
+		var res = new Glyph(o, a, b);
+		res.solidVowel();
+		break;
+	case 'a':
+		var o = new Point(this.margin, this.baseline - HEIGHT * this.unit);
+		var a = new Point(o.x + (BASE / 2) * this.unit, this.baseline);
+		var b = new Point(o.x + BASE * this.unit, o.y);
+		var res = new Glyph(b, a, o);
+		res.solidVowel();
+		break;
+	case 'u': // same as i but open
+		var o = new Point(this.margin, this.baseline);
+		var a = new Point(o.x + (BASE / 2) * this.unit, o.y - HEIGHT * this.unit);
+		var b = new Point(o.x + BASE * this.unit, o.y);
+		var res = new Glyph(o, a, b);
+		res.openVowel();
+		break;
+	case 'e':
+		var o = new Point(this.margin + HEIGHT * this.unit, this.baseline);
+		var a = new Point(this.margin, o.y - (BASE / 2) * this.unit);
+		var b = new Point(o.x, o.y - BASE * this.unit);
+		var res = new Glyph(o, a, b);
+		res.openVowel();
+		break;
+	case 'o':
+		var o = new Point(this.margin, this.baseline - BASE * this.unit);
+		var a = new Point(o.x + HEIGHT * this.unit, o.y + (BASE / 2) * this.unit);
+		var b = new Point(o.x, o.y + BASE * this.unit);
+		var res = new Glyph(o, a, b);
+		res.openVowel();
+		break;
+	case 'ɔ': // same as o but solid
+		var o = new Point(this.margin, this.baseline - BASE * this.unit);
+		var a = new Point(o.x + HEIGHT * this.unit, o.y + (BASE / 2) * this.unit);
+		var b = new Point(o.x, o.y + BASE * this.unit);
+		var res = new Glyph(o, a, b);
+		res.solidVowel();
+		break;
+	case 'ɛ': // same as e but solid
+		var o = new Point(this.margin + HEIGHT * this.unit, this.baseline);
+		var a = new Point(this.margin, o.y - (BASE / 2) * this.unit);
+		var b = new Point(o.x, o.y - BASE * this.unit);
+		var res = new Glyph(o, a, b);
+		res.solidVowel();
+		break;
+	default:
+		console.log("Unknown vowel: " + letter);
+	}
+	res.vowel = letter;
+	return res;
+}
+
+VOWELS = ['i','a','u','e','o','ɔ','ɛ'];
+
+GlyphFactory.prototype.newSyllabicConsonant = function(letter, origin) {
+	this.baseline = origin.y + (TONE + HEIGHT + 2) * this.unit;
+	this.margin = origin.x;
+	var o = new Point(this.margin, this.baseline);
+	var a = new Point(o.x + (BASE / 2) * this.unit, o.y - HEIGHT * this.unit);
+	var b = new Point(o.x + BASE * this.unit, o.y);
+	var res = new Glyph(o, a, b);
+	var radius = (HEIGHT / 2.0) * this.unit;
+	var centre = res.midBase().mid(res.apex);
+	res.addCircle(centre, radius);
+	res.kerning = function() {
+		return (BASE + 2) * this.unit
+	}
+	switch (letter) {
+	case "m̩":
+		break;
+	case "n̩":
+		res.addLine(new Point(centre.x - radius, centre.y), new Point(centre.x + radius, centre.y));
+		break
+	case "ŋ̩":
+		h = Math.sin(Math.PI/4.0);
+		res.addLine(new Point(centre.x - h * radius, centre.y - h * radius), new Point(centre.x + h * radius, centre.y + h * radius));
+		res.addLine(new Point(centre.x - h * radius, centre.y + h * radius), new Point(centre.x + h * radius, centre.y - h * radius));
+		break;
+	default:
+		console.log("Unknown syllabic consonant: " + letter);
+	}
+	res.vowel = letter;
+	return res;
+}
+
+SYLLABIC_CONSONANTS = ["m̩", "n̩", "ŋ̩"];
+
+GlyphFactory.prototype.punctuation = function() {
+
+}
+
+/* ===== isibheqe-rendering_tracking-fix.js ===== */
+// isibheqe-rendering.tracking-fix.js
+// Patch: adds Context.letterSpacing to prevent glyph overlap
+// Author of patch: Bandile
+// Date: 2025-12-17
+
+var Context = function(unit, width, height) {
+	this.factory = new GlyphFactory(unit);
+	this.lineHeight = unit * HEIGHT * 3;
+	this.lineWidth = unit / 3.0;
+	this.spaceWidth = unit * BASE * 1.1;
+	this.letterSpacing = unit * 5.0;   // tweak: try 1.0, 1.5, 2.0
+	this.canvasWidth = width;
+	this.canvasHeight = height;
+	this.cursor = new Point(0, 0);
+	this.buffer = new Array();
+	this.currentVowel = undefined;
+	this.sentence = new Array();
+}
+
+Context.prototype.reset = function() {
+	this.cursor = new Point(0, 0);
+	this.buffer = new Array();
+	this.currentVowel = undefined;
+	this.sentence = new Array();
+}
+
+makeTarget = function(context) {
+	var target = {element: context};	
+
+	target.drawLine = function(a, b) {
+		this.element.beginPath();
+		this.element.moveTo(a.x, a.y);
+		this.element.lineTo(b.x, b.y);
+		this.element.closePath();
+		this.element.stroke()
+	}
+	target.drawArc = function(x, y, radius, start, end) {
+		this.element.beginPath();
+		this.element.arc(x, y, radius, start, end, true);
+		this.element.stroke();
+	}
+	target.fillCircle = function(x, y, radius) {
+		this.element.beginPath();
+		this.element.arc(x, y, radius, 0, Math.PI * 2, true);
+		this.element.fill();	
+	}
+	return target		
+}
+
+// --- SVG EXPORT SUPPORT (low-risk add-on) ---
+makeSvgTarget = function(parts, strokeWidth) {
+	var target = { parts: parts, strokeWidth: strokeWidth };
+
+	target.drawLine = function(a, b) {
+		this.parts.push(
+			'<line x1="' + a.x + '" y1="' + a.y + '" x2="' + b.x + '" y2="' + b.y + '"/>'
+		);
+	};
+
+	target.drawArc = function(x, y, radius, start, end) {
+		// Convert canvas-style arc into an SVG path arc
+		var x1 = x + radius * Math.cos(start);
+		var y1 = y + radius * Math.sin(start);
+		var x2 = x + radius * Math.cos(end);
+		var y2 = y + radius * Math.sin(end);
+
+		var delta = Math.abs(end - start);
+		var largeArc = (delta > Math.PI) ? 1 : 0;
+
+		// Canvas call uses anticlockwise=true, so sweep-flag=0 is a decent match
+		var sweep = 0;
+
+		this.parts.push(
+			'<path d="M ' + x1 + ' ' + y1 + ' A ' + radius + ' ' + radius + ' 0 ' + largeArc + ' ' + sweep + ' ' + x2 + ' ' + y2 + '"/>'
+		);
+	};
+
+	target.fillCircle = function(x, y, radius) {
+		this.parts.push(
+			'<circle cx="' + x + '" cy="' + y + '" r="' + radius + '" fill="black" stroke="none"/>'
+		);
+	};
+
+	return target;
+};
+
+var space = {
+	renderOn: function () {
+		
+	}
+}
+var enter = {
+	renderOn: function () {
+		
+	}
+}
+
+Context.prototype.render = function() {
+	var canvas = document.createElement('canvas');
+	canvas.width  = this.canvasWidth;
+	canvas.height = this.canvasHeight;
+	var context = canvas.getContext("2d");
+	context.lineWidth = this.lineWidth;
+  	context.lineCap = 'round';
+	var target = makeTarget(context);
+	
+	for(var i = 0; i < this.sentence.length; i++) {
+		this.sentence[i].renderOn(target);
+	}
+
+	return canvas;
+}
+
+Context.prototype.renderSvg = function() {
+	var parts = [];
+	var target = makeSvgTarget(parts, this.lineWidth);
+
+	for (var i = 0; i < this.sentence.length; i++) {
+		this.sentence[i].renderOn(target);
+	}
+
+	var header =
+		'<svg xmlns="http://www.w3.org/2000/svg" width="' + this.canvasWidth + '" height="' + this.canvasHeight + '" viewBox="0 0 ' + this.canvasWidth + ' ' + this.canvasHeight + '">' +
+		'<g stroke="black" fill="none" stroke-width="' + this.lineWidth + '" stroke-linecap="round">';
+
+	var footer = '</g></svg>';
+
+	return header + parts.join("") + footer;
+};
+
+Context.prototype.serialize = function() {
+	var output = [];
+	for(var i = 0; i < this.sentence.length; i++) {
+		var elem = this.sentence[i];
+		if(elem === space) {
+			output.push(" ");
+			continue;
+		}
+		if(elem === enter) {
+			output.push("\n");
+			continue;
+		}
+		var v = elem.vowel;
+		var c = elem.consonants;
+		if(c.length > 0) {
+			output.push([v,c]);
+		} else {
+			output.push(v);
+		}
+	}
+	return JSON.stringify(output);
+}
+
+Context.prototype.deserialize = function(data) {
+	var loaded = JSON.parse(data);
+	this.reset();
+	for(var i = 0; i < loaded.length; i++) {
+		var elem = loaded[i];
+		if(typeof elem === "string") {
+			if(elem === " ") {
+				this.addLetter("space");
+				continue;
+			} 
+			if(elem === "\n") {
+				this.addLetter("enter");
+				continue;	
+			}
+			this.addLetter(elem);
+		} else {
+			this.addLetter(elem[0]);
+			for(var j = 0; j < elem[1].length; j++) {
+				this.addLetter(elem[1][j]);
+			}
+		}
+	}
+}
+
+Context.prototype.addLetter = function(key) {
+	if(this.cursor.y + this.lineHeight >= this.canvasHeight) {
+		this.canvasHeight = this.canvasHeight + this.lineHeight;
+	}
+	var overflow = new Point();
+	if(VOWELS.indexOf(key) >= 0) {
+		if(this.currentVowel !== undefined) {
+			this.buffer.push(this.cursor);
+			this.cursor = this.cursor.translate(new Point(this.currentVowel.kerning() + this.letterSpacing, 0));
+
+		}
+		this.currentVowel = this.factory.newVowel(key, this.cursor);
+		this.sentence.push(this.currentVowel);
+		overflow = this.cursor.translate(new Point(this.currentVowel.kerning() + this.letterSpacing, 0));
+
+	} else if (SYLLABIC_CONSONANTS.indexOf(key) >= 0) {
+		if(this.currentVowel !== undefined) {
+			this.buffer.push(this.cursor);
+			this.cursor = this.cursor.translate(new Point(this.currentVowel.kerning() + this.letterSpacing, 0));
+
+			this.currentVowel = undefined;
+		}
+		var syllabicConsonant = this.factory.newSyllabicConsonant(key, this.cursor);
+		this.sentence.push(syllabicConsonant);
+		this.cursor = this.cursor.translate(new Point(syllabicConsonant.kerning() + this.letterSpacing, 0));
+
+		overflow = this.cursor;
+	} else if(CONSONANTS.indexOf(key) >= 0) {
+		if(this.currentVowel !== undefined) {
+			this.currentVowel.addConsonant(key);
+		} else {
+			return;
+		}
+	} else if(key === "space") {
+		this.buffer.push(this.cursor);
+		if (this.currentVowel !== undefined) {
+			this.cursor = this.cursor.translate(new Point(this.currentVowel.kerning() + this.letterSpacing, 0));
+
+		}
+		this.currentVowel = undefined;
+		this.cursor = this.cursor.translate(new Point(this.spaceWidth, 0));
+		this.sentence.push(space);
+		return;
+	} else if(key === "enter") {
+		this.currentVowel = undefined;
+		this.buffer.push(this.cursor);
+		this.cursor = new Point(0, this.cursor.y + this.lineHeight);
+		this.sentence.push(enter);
+		return;
+	}
+	if (overflow.x >= this.canvasWidth) {
+		var index = this.sentence.lastIndexOf(space);
+		if(index != 0) {
+			this.sentence.splice(index + 1, 0, enter);
+			var hack = this.serialize();
+			this.deserialize(hack);
+		}
+	}
+}
+
+Context.prototype.undo = function() {
+	this.sentence.pop();
+	this.cursor = this.buffer.pop();
+}
+
+/* ===== key-mappings.js ===== */
+keyMapping = {
+"`":"‘",
+"~":"\"",
+"!":"!2",
+"#":"#",
+"^":":",
+"&":";",
+"*":"*",
+"(":"(",
+")":")",
+"=":"/",
+"+":"\\",
+"q":"r",
+"Q":"r̩",
+"w":"f",
+"e":"ʃ",
+"E":"ʧ",
+"r":"ɬ",
+"t":"k",
+"y":"t",
+"Y":"t̪",
+"u":"w",
+"i":"ŋ",
+"I":"ɲ",
+"o":"s",
+"p":"h",
+"[":"j",
+"]":"ȿ",
+"\\":"~",
+"a":"u",
+"s":"i",
+"d":"ɛ",
+"f":"a",
+"g":"ɔ",
+"h":"•",
+"j":"-",
+"k":"°",
+"l":"n",
+"L":"n̪",
+";":"p",
+"'":"l",
+"\"":"l̩",
+"z":"ɸ",
+"x":"x",
+"c":"o",
+"v":"e",
+"b":"m̩",
+"B":"n̩",
+"n":"c",
+"N":"ŋ̩",
+"m":"|",
+",":"!",
+"<":".",
+".":"||",
+">":",",
+"/":"ɽ",
+"?":"?",
+};
+</script>
+<script>
+var UNIT = 3;
+var SYL_UNIT = 5;
+var state = { tokens: [], latin: {} };
+
+function $(id){ return document.getElementById(id); }
+function on(id, ev, fn){
+  var el = $(id);
+  if(!el){ console.warn("no element #" + id); return; }
+  el.addEventListener(ev, fn);
+}
+function setStatus(m,t){ var s=$("status"); s.textContent=m; s.className=t||""; }
+
+var mainCtx = new Context(UNIT, 1000000, 4000);
+
+function makeKeyCanvas(letter, unit){
+  var c = document.createElement("canvas");
+  c.width = 48; c.height = 76;
+  var g = c.getContext("2d");
+  g.lineWidth = unit/3.0; g.lineCap = "round";
+  var t = makeTarget(g);
+  var f = new GlyphFactory(unit);
+  try{
+    if(VOWELS.indexOf(letter)>=0){ f.newVowel(letter,new Point(0,0)).renderOn(t); }
+    else if(SYLLABIC_CONSONANTS.indexOf(letter)>=0){ f.newSyllabicConsonant(letter,new Point(0,0)).renderOn(t); }
+    else {
+      var gl = f.newVowel("i", new Point(0,0));
+      if(letter==="l̩") gl.addConsonant("l");
+      if(letter==="r̩") gl.addConsonant("r");
+      gl.addConsonant(letter); gl.renderOn(t);
+    }
+  }catch(e){}
+  return c;
+}
+
+var MODS = ["-","•","°","~"];
+function buildKeyboard(){
+  var groups = [
+    [$("kb-vowels"), VOWELS.concat(SYLLABIC_CONSONANTS)],
+    [$("kb-mods"), MODS],
+    [$("kb-cons"), CONSONANTS.filter(function(c){ return MODS.indexOf(c)<0; })]
+  ];
+  groups.forEach(function(pair){
+    var host = pair[0];
+    pair[1].forEach(function(letter){
+      var d = document.createElement("div");
+      d.className = "key"; d.title = letter;
+      d.appendChild(makeKeyCanvas(letter, 3));
+      d.addEventListener("click", function(){ mainCtx.addLetter(letter); syncFromContext(); });
+      host.appendChild(d);
+    });
+  });
+}
+
+/* An SVG arc whose start and end points coincide draws nothing, so a full
+   circle (0 to 2PI) silently vanished from SVG exports. Emit <circle> instead. */
+function svgTarget(parts, ink){
+  return {
+    drawLine: function(a,b){ parts.push('<line x1="'+a.x+'" y1="'+a.y+'" x2="'+b.x+'" y2="'+b.y+'"/>'); },
+    drawArc: function(x,y,r,start,end){
+      var delta = Math.abs(end-start);
+      if(delta >= Math.PI*1.999){ parts.push('<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="none"/>'); return; }
+      var x1=x+r*Math.cos(start), y1=y+r*Math.sin(start), x2=x+r*Math.cos(end), y2=y+r*Math.sin(end);
+      parts.push('<path d="M '+x1+' '+y1+' A '+r+' '+r+' 0 '+((delta>Math.PI)?1:0)+' 0 '+x2+' '+y2+'"/>');
+    },
+    fillCircle: function(x,y,r){ parts.push('<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="'+ink+'" stroke="none"/>'); }
+  };
+}
+function buildGlyph(token, factory){
+  var vowel, cons;
+  if(typeof token === "string"){ vowel = token; cons = []; }
+  else { vowel = token[0]; cons = token[1] || []; }
+  if(SYLLABIC_CONSONANTS.indexOf(vowel) >= 0) return factory.newSyllabicConsonant(vowel, new Point(0,0));
+  var g = factory.newVowel(vowel, new Point(0,0));
+  for(var i=0;i<cons.length;i++){ g.addConsonant(cons[i]); }
+  return g;
+}
+function glyphSvgParts(token, unit, ink){
+  var parts = [];
+  buildGlyph(token, new GlyphFactory(unit)).renderOn(svgTarget(parts, ink));
+  return parts.join("");
+}
+
+var sylCache = {}, sylCacheN = 0;
+function renderSyllable(token){
+  var key = JSON.stringify(token);
+  if(sylCache[key]) return sylCache[key];
+  if(sylCacheN > 400){ sylCache = {}; sylCacheN = 0; }
+  var cv = document.createElement("canvas");
+  cv.width = Math.round(SYL_UNIT*17.6); cv.height = Math.round(SYL_UNIT*26);
+  var g = cv.getContext("2d");
+  g.lineWidth = SYL_UNIT/3.0; g.lineCap = "round";
+  var t = makeTarget(g);
+  var f = new GlyphFactory(SYL_UNIT);
+  buildGlyph(token, f).renderOn(t);
+  sylCache[key] = cv;
+  return cv;
+}
+function cloneCanvas(src){
+  var c = document.createElement("canvas");
+  c.width = src.width; c.height = src.height;
+  c.getContext("2d").drawImage(src,0,0);
+  return c;
+}
+
+
+/* Split a raw code string into its top-level units so each can be coloured and
+   clicked. Walks the text rather than using the parsed array, so it still works
+   on a string that is malformed further along. */
+function splitCodeUnits(raw){
+  var units = [], i = 0;
+  while(i < raw.length && raw[i] !== '[') i++;
+  if(i >= raw.length) return units;
+  i++;
+  while(i < raw.length){
+    var ch = raw[i];
+    if(ch === ' ' || ch === '\n' || ch === '\t' || ch === ','){ i++; continue; }
+    if(ch === ']') break;
+    var start = i;
+    if(ch === '"'){
+      i++;
+      while(i < raw.length && raw[i] !== '"'){ if(raw[i] === '\\') i++; i++; }
+      i++;
+      units.push({start:start, end:i, text:raw.slice(start,i)});
+    } else if(ch === '['){
+      var d = 0, inS = false;
+      while(i < raw.length){
+        var c = raw[i];
+        if(inS){ if(c === '\\'){ i += 2; continue; } if(c === '"') inS = false; i++; continue; }
+        if(c === '"'){ inS = true; i++; continue; }
+        if(c === '['){ d++; }
+        else if(c === ']'){ d--; if(d === 0){ i++; break; } }
+        i++;
+      }
+      units.push({start:start, end:i, text:raw.slice(start,i)});
+    } else { i++; }
+  }
+  return units;
+}
+
+var selectedGlyph = -1;
+function escHtml(t){ return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+function renderCodeView(){
+  var host = $("code-view");
+  if(!host || host.style.display === "none") return;
+  var raw = $("code").value;
+  var units = splitCodeUnits(raw);
+  if(!units.length){ host.innerHTML = '<span style="color:var(--dimmer)">nothing to show yet</span>'; return; }
+
+  var html = [], wordPos = 0, glyphNo = 0, tokenIdx = 0;
+  units.forEach(function(u){
+    var t = u.text.replace(/\s+/g,"");
+    if(t === '" "'){ html.push('<span class="cbrk"> \u00b7 </span>'); wordPos = 0; tokenIdx++; return; }
+    if(t === '"\\n"'){ html.push('<span class="cbrk"> \u00b6 </span>'); wordPos = 0; tokenIdx++; return; }
+    glyphNo++;
+    var bad = "";
+    try{
+      var parsed = JSON.parse(u.text);
+      var v = (typeof parsed === "string") ? parsed : parsed[0];
+      var cs = (typeof parsed === "string") ? [] : (parsed[1] || []);
+      if(VOWELS.indexOf(v) < 0 && SYLLABIC_CONSONANTS.indexOf(v) < 0) bad = " bad";
+      for(var k=0;k<cs.length;k++){ if(CONSONANTS.indexOf(cs[k]) < 0) bad = " bad"; }
+    }catch(e){ bad = " bad"; }
+    html.push('<span class="cu cw' + (wordPos % 6) + bad + '" data-g="' + glyphNo + '" data-i="' + tokenIdx + '" title="syllable ' + glyphNo + '">'
+      + '<span class="cu-n">' + glyphNo + '</span>' + escHtml(u.text) + '</span>');
+    wordPos++; tokenIdx++;
+  });
+  host.innerHTML = html.join("");
+
+  Array.prototype.forEach.call(host.querySelectorAll(".cu"), function(el){
+    el.addEventListener("click", function(){ selectGlyph(parseInt(this.getAttribute("data-g"),10)); });
+  });
+  if(selectedGlyph > 0) markSelection();
+}
+
+function markSelection(){
+  Array.prototype.forEach.call(document.querySelectorAll(".cu.sel"), function(e){ e.classList.remove("sel"); });
+  Array.prototype.forEach.call(document.querySelectorAll(".syl.sel"), function(e){ e.classList.remove("sel"); });
+  if(selectedGlyph < 1){ updateSelectionOverlay(); return; }
+  var cu = document.querySelector('.cu[data-g="' + selectedGlyph + '"]');
+  if(cu) cu.classList.add("sel");
+  var tile = document.querySelector('.syl[data-g="' + selectedGlyph + '"]');
+  if(tile) tile.classList.add("sel");
+  updateSelectionOverlay();
+}
+
+/* No auto-scroll here. The colour view sits below the strip in the same
+   scrolling pane, so scrolling a clicked snippet's tile into view pushed the
+   snippet itself off screen -- the opposite of helpful on a long phrase.
+   The three highlights (snippet, tile, card glyph) are enough to locate a
+   syllable without moving anything under the person's cursor. */
+function selectGlyph(n){
+  selectedGlyph = n;
+  markSelection();
+  var tile = document.querySelector('.syl[data-g="' + n + '"]');
+  if(tile){
+    var inp = tile.querySelector("input");
+    if(inp) inp.focus({preventScroll:true});
+  }
+  updateSelectionOverlay();
+}
+
+function syncFromContext(){
+  var raw = mainCtx.serialize();
+  $("code").value = raw;
+  state.tokens = JSON.parse(raw);
+  drawStrip();
+  renderCodeView();
+}
+
+function drawStrip(){
+  var strip = $("strip"); strip.innerHTML = "";
+  var toks = state.tokens;
+  var real = 0;
+  if(!toks.length){
+    strip.innerHTML = '<div class="empty-hint">Click keys on the left to build a phrase.<br>Each syllabeme appears here with a box for its Latin syllable.<br>Vowel first, then consonants and modifiers.</div>';
+    $("syl-count").textContent = "";
+    updateLatin(); drawCard(); return;
+  }
+  toks.forEach(function(tok, i){
+    if(tok === " " || tok === "\n"){
+      var g = document.createElement("div");
+      g.className = "syl gap"; g.title = (tok===" "?"word break":"line break");
+      g.innerHTML = '<span style="color:var(--dimmer);font-size:16px">'+(tok===" "?"·":"¶")+'</span>';
+      strip.appendChild(g); return;
+    }
+    real++;
+    var wrap = document.createElement("div");
+    wrap.className = "syl";
+    var idx = document.createElement("span");
+    idx.className = "idx"; idx.textContent = real;
+    wrap.appendChild(idx);
+    try{ wrap.appendChild(cloneCanvas(renderSyllable(tok))); }catch(e){
+      var er = document.createElement("div"); er.style.cssText="color:var(--red);font-size:10px;height:72px";
+      er.textContent="?"; wrap.appendChild(er);
+    }
+    var inp = document.createElement("input");
+    inp.type="text"; inp.value = state.latin[i] || "";
+    inp.placeholder = "—";
+    inp.setAttribute("data-i", i);
+    inp.addEventListener("input", function(){
+      state.latin[i] = this.value; updateLatin(); drawCard();
+    });
+    inp.addEventListener("keydown", function(e){
+      if(e.key==="Enter"){ e.preventDefault();
+        var all = strip.querySelectorAll("input");
+        for(var k=0;k<all.length;k++){ if(all[k]===this && all[k+1]){ all[k+1].focus(); break; } }
+      }
+    });
+    wrap.appendChild(inp);
+    strip.appendChild(wrap);
+  });
+  $("syl-count").textContent = real + " syllabeme" + (real===1?"":"s");
+  updateLatin(); drawCard();
+}
+
+function updateLatin(){
+  var out = [], toks = state.tokens;
+  toks.forEach(function(tok,i){
+    if(tok===" "){ out.push(" "); return; }
+    if(tok==="\n"){ out.push(" / "); return; }
+    var v = state.latin[i];
+    if(v) out.push(v);
+  });
+  $("f-latin").value = out.join("").replace(/\s+/g," ").trim();
+}
+
+function cardColors(){
+  return $("card-bg").value === "white"
+    ? {bg:"#ffffff", ink:"#111111", sub:"#555555", rule:"#dddddd"}
+    : {bg:"#f7f4ec", ink:"#141414", sub:"#5a564c", rule:"#ddd8cc"};
+}
+
+var _mc = null;
+function measureCtx(){
+  if(!_mc){ var c = document.createElement("canvas"); c.width=10; c.height=10; _mc = c.getContext("2d"); }
+  return _mc;
+}
+function wrapText(ctx, text, maxW){
+  var words = text.split(/\s+/), lines = [], cur = "";
+  for(var i=0;i<words.length;i++){
+    var t = cur ? cur + " " + words[i] : words[i];
+    if(ctx.measureText(t).width <= maxW || !cur){ cur = t; }
+    else { lines.push(cur); cur = words[i]; }
+  }
+  if(cur) lines.push(cur);
+  return lines;
+}
+
+var W = 1080, H = 1080;
+var BASE_GW = 108, BASE_GH = 150, BASE_LAT = 34, BASE_GAP = 14, BASE_WGAP = 34, BASE_RPAD = 26;
+
+var TEXT_W = 900, FOOT = 156;
+
+/* Latin and gloss share one vertical budget. The gloss is sized relative to
+   the Latin, so a long user-typed gloss shrinks the pair together instead of
+   being crushed or overrunning the footer. Line height includes descender room
+   so letters like g are never clipped. */
+function fitTextBlock(latin, gloss){
+  var mc = measureCtx(), budget = 300;
+  var best = null;
+  for(var lf = 54; lf >= 22; lf -= 2){
+    mc.font = "600 " + lf + "px Syne, sans-serif";
+    var ll = latin ? wrapText(mc, latin, TEXT_W) : [];
+    if(latin && ll.length > 3) continue;
+    var gf = Math.max(20, Math.min(34, Math.round(lf * 0.62))), gl = [];
+    if(gloss){
+      for(; gf >= 18; gf -= 2){
+        mc.font = "italic 400 " + gf + "px Syne, sans-serif";
+        gl = wrapText(mc, gloss, TEXT_W);
+        if(gl.length <= 2) break;
+      }
+    }
+    var h = ll.length*lf*1.34 + (gl.length ? 20 + gl.length*gf*1.4 : 0);
+    best = {latinFS:lf, latinLines:ll, glossFS:gf, glossLines:gl, textH:h};
+    if(h <= budget) break;
+  }
+  if(!best) best = {latinFS:32, latinLines:[], glossFS:24, glossLines:[], textH:0};
+  return best;
+}
+
+function computeLayout(){
+  var units = [];
+  state.tokens.forEach(function(tok,i){
+    if(tok===" "||tok==="\n"){ units.push({br:tok}); return; }
+    units.push({tok:tok, latin: state.latin[i]||""});
+  });
+  var T = fitTextBlock(($("f-latin").value||"").trim(), ($("f-gloss").value||"").trim());
+  var TOP = 64, PAD = 40;
+  var availH = H - TOP - FOOT - T.textH - PAD;
+  var maxW = W - 150;
+  var s = 1.0, rows = [], overflow = false;
+  for(s = 1.0; s >= 0.34; s -= 0.04){
+    var gw=BASE_GW*s, gh=BASE_GH*s, lat=BASE_LAT*s, gap=BASE_GAP*s, wgap=BASE_WGAP*s, rpad=BASE_RPAD*s;
+    rows = [[]]; var rw = 0;
+    units.forEach(function(u){
+      if(u.br === "\n"){ rows.push([]); rw = 0; return; }
+      if(u.br === " "){ if(rows[rows.length-1].length){ rows[rows.length-1].push(u); rw += wgap; } return; }
+      if(rw + gw > maxW && rows[rows.length-1].length){ rows.push([]); rw = 0; }
+      rows[rows.length-1].push(u); rw += gw + gap;
+    });
+    rows = rows.filter(function(r){ return r.length; });
+    if(rows.length * (gh + lat + rpad) <= availH) break;
+    if(s <= 0.38) overflow = true;
+  }
+  return {units:units, rows:rows, s:s, overflow:overflow, T:T, TOP:TOP, availH:availH};
+}
+
+/* "Fits" and "readable" are different thresholds. A 160-glyph phrase still
+   fits at 0.4 scale, but the glyphs land near 43px on a 1080 card with 12px
+   Latin under them, which nobody can read. Warn on legibility, not just fit. */
+function updateCapNote(L){
+  var real = state.tokens.filter(function(t){ return t!==" " && t!=="\n"; }).length;
+  var n = $("cap-note");
+  if(!n) return;
+  if(!real){ n.textContent=""; return; }
+  if(L.overflow){ n.textContent = "TOO LONG FOR ONE CARD"; n.style.color = "var(--red)"; }
+  else if(L.s < 0.6){ n.textContent = "very small at " + Math.round(L.s*100) + "% \u2014 hard to read, consider splitting"; n.style.color = "var(--red)"; }
+  else if(L.s < 0.99){ n.textContent = "scaled to " + Math.round(L.s*100) + "% to fit"; n.style.color = "var(--acc)"; }
+  else { n.textContent = "fits at full size"; n.style.color = "var(--grn)"; }
+}
+
+function cardOps(){
+  var L = computeLayout(), C = cardColors(), ops = [], glyphNo = 0;
+  var s=L.s, gw=BASE_GW*s, gh=BASE_GH*s, lat=BASE_LAT*s, gap=BASE_GAP*s, wgap=BASE_WGAP*s, rpad=BASE_RPAD*s;
+  var rowH = gh + lat + rpad, AR = 17.6/26;
+  var y = L.TOP + Math.max(0, (L.availH - L.rows.length*rowH)/2);
+  L.rows.forEach(function(row){
+    var tw = 0;
+    row.forEach(function(u){ tw += (u.br===" ") ? wgap : gw+gap; });
+    var x = (W - tw)/2;
+    row.forEach(function(u){
+      if(u.br===" "){ x += wgap; return; }
+      glyphNo++;
+      var dw = gh*AR;
+      ops.push({t:"glyph", tok:u.tok, gi:glyphNo, x:x+(gw-dw)/2, y:y, w:dw, h:gh});
+      if(u.latin) ops.push({t:"txt", s:u.latin, x:x+gw/2, y:y+gh+lat, fs:Math.round(30*s),
+                            fam:"'JetBrains Mono', monospace", weight:"500", col:C.ink});
+      x += gw + gap;
+    });
+    y += rowH;
+  });
+  var T = L.T, by = H - FOOT - T.textH + T.latinFS;
+  T.latinLines.forEach(function(line){
+    ops.push({t:"txt", s:line, x:W/2, y:by, fs:T.latinFS, fam:"Syne, sans-serif", weight:"600", col:C.ink});
+    by += Math.round(T.latinFS*1.34);
+  });
+  if(T.glossLines.length){
+    by += 18;
+    T.glossLines.forEach(function(line){
+      ops.push({t:"txt", s:line, x:W/2, y:by, fs:T.glossFS, fam:"Syne, sans-serif", weight:"400", italic:true, col:C.sub});
+      by += Math.round(T.glossFS*1.4);
+    });
+  }
+  ops.push({t:"rule", y:H-116});
+  var lang = $("f-lang").value || "\u2014", rnd = $("f-round").value || "seed", scr = $("f-scribe").value;
+  ops.push({t:"txt", s:lang+" \u00b7 "+rnd, x:80, y:H-64, fs:26, fam:"Syne, sans-serif", weight:"400", col:C.sub, align:"left"});
+  if(scr) ops.push({t:"txt", s:"scribe: "+scr, x:W-80, y:H-64, fs:26, fam:"Syne, sans-serif", weight:"400", col:C.sub, align:"right"});
+  return {ops:ops, C:C, L:L};
+}
+
+var cardTimer = null;
+function drawCard(){ clearTimeout(cardTimer); cardTimer = setTimeout(drawCardNow, 90); }
+
+var lastCardOps = null;
+function drawCardNow(){
+  var R = cardOps(), g = $("card-canvas").getContext("2d"), C = R.C;
+  lastCardOps = R;
+  updateCapNote(R.L);
+  g.clearRect(0,0,W,H); g.fillStyle = C.bg; g.fillRect(0,0,W,H);
+  R.ops.forEach(function(o){
+    if(o.t==="glyph"){ try{ g.drawImage(renderSyllable(o.tok), o.x, o.y, o.w, o.h); }catch(e){} }
+    else if(o.t==="txt"){
+      g.textAlign = o.align || "center"; g.textBaseline = "alphabetic"; g.fillStyle = o.col;
+      g.font = (o.italic?"italic ":"") + o.weight + " " + o.fs + "px " + o.fam;
+      g.fillText(o.s, Math.round(o.x), Math.round(o.y));
+    } else if(o.t==="rule"){
+      g.strokeStyle = C.rule; g.lineWidth = 2;
+      g.beginPath(); g.moveTo(80,o.y); g.lineTo(W-80,o.y); g.stroke();
+    }
+  });
+  g.textAlign = "center";
+  updateSelectionOverlay();
+}
+
+/* A separate canvas, exactly aligned over the real card, used only to show
+   which glyph is currently selected. It is never read by the PNG, SVG, or
+   clipboard export paths, so the highlight can never leak into a shared
+   card. */
+function updateSelectionOverlay(){
+  var cv = $("card-overlay"); if(!cv) return;
+  var g = cv.getContext("2d");
+  g.clearRect(0,0,cv.width,cv.height);
+  if(selectedGlyph < 1 || !lastCardOps) return;
+  var op = lastCardOps.ops.filter(function(o){ return o.t==="glyph" && o.gi===selectedGlyph; })[0];
+  if(!op) return;
+  var pad = 10;
+  g.strokeStyle = "#f5a623"; g.lineWidth = 6; g.lineJoin = "round";
+  g.strokeRect(op.x-pad, op.y-pad, op.w+pad*2, op.h+pad*2);
+}
+
+function esc(t){ return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+function buildCardSvg(){
+  var R = cardOps(), C = R.C, GU = 5, NAT_H = GU*26;
+  var out = ['<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'">'];
+  out.push('<rect width="'+W+'" height="'+H+'" fill="'+C.bg+'"/>');
+  R.ops.forEach(function(o){
+    if(o.t==="glyph"){
+      var k = o.h/NAT_H, parts;
+      try{ parts = glyphSvgParts(o.tok, GU, C.ink); }catch(e){ return; }
+      out.push('<g transform="translate('+o.x+','+o.y+') scale('+k+')" stroke="'+C.ink+'" fill="none" stroke-width="'+(GU/3.0)+'" stroke-linecap="round">'+parts+'</g>');
+    } else if(o.t==="txt"){
+      var anchor = o.align==="left" ? "start" : (o.align==="right" ? "end" : "middle");
+      out.push('<text x="'+o.x+'" y="'+o.y+'" text-anchor="'+anchor+'" font-family="'+o.fam.replace(/\x27/g,"")+'" font-weight="'+o.weight+'"'
+        +(o.italic?' font-style="italic"':'')+' font-size="'+o.fs+'" fill="'+o.col+'">'+esc(o.s)+'</text>');
+    } else if(o.t==="rule"){
+      out.push('<line x1="80" y1="'+o.y+'" x2="'+(W-80)+'" y2="'+o.y+'" stroke="'+C.rule+'" stroke-width="2"/>');
+    }
+  });
+  out.push('</svg>'); return out.join("");
+}
+
+function buildRecord(){
+  var sylls = [];
+  state.tokens.forEach(function(tok,i){
+    if(tok===" "||tok==="\n"){ sylls.push({"break": tok===" "?"word":"line"}); return; }
+    sylls.push({ code: tok, latin: state.latin[i] || "" });
+  });
+  return {
+    entry_id: $("f-id").value || null,
+    round: $("f-round").value || "seed",
+    language: $("f-lang").value || null,
+    latin: $("f-latin").value || null,
+    gloss: $("f-gloss").value || null,
+    scribe: $("f-scribe").value || null,
+    code: $("code").value,
+    syllables: sylls
+  };
+}
+
+function slugName(){
+  var base = $("f-id").value || $("f-latin").value || "entry";
+  return base.replace(/[^a-z0-9]+/gi,"-").replace(/^-+|-+$/g,"").toLowerCase().slice(0,70) || "entry";
+}
+function download(blob, name){
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+on("undo", "click", function(){
+  mainCtx.undo();
+  if(!mainCtx.cursor){ mainCtx.cursor = new Point(0,0); }
+  syncFromContext();
+});
+on("space", "click", function(){ mainCtx.addLetter("space"); syncFromContext(); });
+on("clear", "click", function(){
+  mainCtx.reset(); state.latin = {}; syncFromContext(); setStatus("cleared","");
+});
+/* Structural pre-check for a raw code string, run before JSON.parse so we can
+   point at WHERE editing went wrong — usually a bracket dropped mid-phrase.
+   The grammar (from the engine's deserialize): the whole thing is one [ ... ].
+   Inside, each element is either a quoted string ("a", " ") or a
+   two-item array [ "vowel", [ "mark", ... ] ]. */
+function diagnoseCodeString(raw){
+  if(/[\u2018\u2019\u201C\u201D]/.test(raw)) return "curly quotes found — replace \u201c \u201d with straight \" quotes";
+  if(/'/.test(raw)) return "single quotes found — the code needs double \" quotes";
+  if(raw.indexOf("[") < 0) return "no brackets at all — a code string is wrapped in [ \u2026 ]";
+  var depth = 0, inStr = false, i, ch, lastOpenAt = [];
+  var deepest = 0, closedOuter = false;
+  for(i=0;i<raw.length;i++){
+    ch = raw[i];
+    if(inStr){ if(ch === '"') inStr = false; continue; }
+    if(ch === '"'){ inStr = true; continue; }
+    if(ch === '['){
+      if(closedOuter) return "the phrase was already closed at an earlier \"]\", then \"[\" reopens near character " + (i+1) + " — likely an extra \"]\" in the middle";
+      depth++; lastOpenAt.push(i); if(depth>deepest) deepest=depth;
+    }
+    else if(ch === ']'){
+      depth--;
+      if(depth < 0) return "an extra \"]\" around character " + (i+1) + " — one too many closing brackets, probably left over from an edit";
+      lastOpenAt.pop();
+      if(depth === 0) closedOuter = true;
+    }
+    else if(depth === 0 && /\S/.test(ch)){
+      if(closedOuter) return "text after the phrase already closed, near character " + (i+1) + " — an extra \"]\" probably ended it early";
+      return "stray \"" + ch + "\" outside any brackets near character " + (i+1);
+    }
+    else if(depth > 3) return "brackets nested too deep near character " + (i+1) + " — likely a \"]\" was dropped earlier";
+  }
+  if(inStr) return "a quote is opened but never closed — check for a missing \" ";
+  if(depth > 0){
+    var where = lastOpenAt.length ? lastOpenAt[lastOpenAt.length-1] : 0;
+    var frag = raw.slice(Math.max(0,where-6), where+10).replace(/\s+/g," ");
+    return "missing " + depth + " closing \"]\" — an opening \"[\" near \u2026" + frag + "\u2026 (character " + (where+1) + ") was never closed";
+  }
+  if(deepest === 0) return "no brackets at all — a code string is wrapped in [ \u2026 ]";
+  return null;
+}
+
+/* After JSON parses, check each element against the grammar and report which
+   syllable is wrong, since a 20-syllable phrase makes position everything. */
+/* Numbering here must match the strip tiles and the colour view, which count
+   glyphs only and skip spaces. Counting raw array positions instead sends the
+   reader to the wrong syllable on any phrase with more than one word. */
+function diagnoseTokens(arr){
+  var n = 0;
+  for(var i=0;i<arr.length;i++){
+    var t = arr[i];
+    if(t===" "||t==="\n") continue;
+    n++;
+    if(typeof t === "string"){
+      if(VOWELS.indexOf(t)<0 && SYLLABIC_CONSONANTS.indexOf(t)<0)
+        return "syllable " + n + ': a bare "' + t + '" is not a vowel — a lone letter here must be a vowel (' + VOWELS.join(" ") + ')';
+      continue;
+    }
+    if(!Array.isArray(t)) return "syllable " + n + ": should be a vowel string or a [vowel,[marks]] pair";
+    if(t.length !== 2 || typeof t[0] !== "string" || !Array.isArray(t[1]))
+      return "syllable " + n + ': wrong shape — it must be exactly ["vowel",["mark",\u2026]]';
+    if(VOWELS.indexOf(t[0])<0 && SYLLABIC_CONSONANTS.indexOf(t[0])<0)
+      return "syllable " + n + ': "' + t[0] + '" is not a valid vowel (must be one of ' + VOWELS.join(" ") + ')';
+    for(var k=0;k<t[1].length;k++){
+      if(CONSONANTS.indexOf(t[1][k])<0)
+        return "syllable " + n + ': "' + t[1][k] + '" is not a known mark — and note there is no m, nasals use \u00b0';
+    }
+  }
+  return null;
+}
+
+function loadFromText(rawIn){
+  var raw = (rawIn||"").trim();
+  if(!raw){ setStatus("nothing to load — paste a code string first","err"); return; }
+
+  var meta = null, restoreLatin = null;
+
+  // A saved record is an object with a .code field; unwrap to its code string.
+  if(raw.charAt(0) === "{"){
+    var rec;
+    try{ rec = JSON.parse(raw); }
+    catch(e){ setStatus("this looks like a saved record but its JSON is broken — " + e.message, "err"); return; }
+    if(!rec.code){ setStatus("this record has no code field to load","err"); return; }
+    meta = rec; raw = String(rec.code).trim();
+    if(rec.syllables){
+      restoreLatin = {}; var si = 0;
+      rec.syllables.forEach(function(sy){ if(sy["break"]){ si++; return; } restoreLatin[si] = sy.latin || ""; si++; });
+    }
+  }
+
+  // Structural check first — points at where brackets/quotes went wrong.
+  var structural = diagnoseCodeString(raw);
+  if(structural){ setStatus("could not read the code: " + structural, "err"); return; }
+
+  var parsed;
+  try{ parsed = JSON.parse(raw); }
+  catch(e){ setStatus("could not read the code: " + e.message, "err"); return; }
+  if(!Array.isArray(parsed)){ setStatus('the code should be a list wrapped in [ \u2026 ]',"err"); return; }
+
+  // Grammar check — reports the first bad syllable by number.
+  var tokenErr = diagnoseTokens(parsed);
+
+  /* Reloading a raw code string used to compare old and new tokens by index,
+     so inserting or deleting even one syllable anywhere in a long phrase
+     shifted every position after it and silently wiped their Latin -- even
+     though the syllable itself was still sitting right there, just one slot
+     over. Align by content instead (longest common subsequence), so a
+     syllable keeps its Latin as long as it still appears in the same
+     relative order, regardless of what changed elsewhere in the phrase. */
+  function alignTokens(oldArr, newArr){
+    var n = oldArr.length, m = newArr.length;
+    if(n * m > 250000) return null; // safety cap for pathological pastes
+    var ka = oldArr.map(function(t){ return JSON.stringify(t); });
+    var kb = newArr.map(function(t){ return JSON.stringify(t); });
+    var dp = [];
+    for(var i=0;i<=n;i++){ dp.push(new Array(m+1).fill(0)); }
+    for(i=1;i<=n;i++){
+      for(var j=1;j<=m;j++){
+        dp[i][j] = (ka[i-1]===kb[j-1]) ? dp[i-1][j-1]+1 : Math.max(dp[i-1][j], dp[i][j-1]);
+      }
+    }
+    var pairs = []; i=n; var j=m;
+    while(i>0 && j>0){
+      if(ka[i-1]===kb[j-1]){ pairs.push({o:i-1,n:j-1}); i--; j--; }
+      else if(dp[i-1][j] >= dp[i][j-1]) i--; else j--;
+    }
+    return pairs;
+  }
+
+  var carried = 0;
+  if(!restoreLatin && state.tokens && state.tokens.length){
+    var pairs = alignTokens(state.tokens, parsed), keep = {};
+    if(pairs){
+      pairs.forEach(function(p){ if(state.latin[p.o]){ keep[p.n] = state.latin[p.o]; carried++; } });
+    } else {
+      // too large to align cheaply -- fall back to the old by-index behaviour
+      for(var q=0;q<parsed.length;q++){
+        if(q < state.tokens.length && JSON.stringify(state.tokens[q]) === JSON.stringify(parsed[q]) && state.latin[q]){
+          keep[q] = state.latin[q]; carried++;
+        }
+      }
+    }
+    if(carried) restoreLatin = keep;
+  }
+
+  try{
+    mainCtx.reset(); mainCtx.cursor = new Point(0,0);
+    mainCtx.deserialize(JSON.stringify(parsed));
+    state.latin = restoreLatin || {};
+    if(meta){
+      if(meta.language) $("f-lang").value = meta.language;
+      if(meta.gloss)    $("f-gloss").value = meta.gloss;
+      if(meta.round)    $("f-round").value = meta.round;
+      if(meta.scribe)   $("f-scribe").value = meta.scribe;
+      if(meta.entry_id) $("f-id").value = meta.entry_id;
+    }
+    syncFromContext();
+    if(tokenErr) setStatus("loaded, but check " + tokenErr, "err");
+    else if(meta) setStatus("record restored — glyphs, Latin and details","ok");
+    else if(carried) setStatus("code loaded — kept the Latin for " + carried + " unchanged syllable" + (carried===1?"":"s"),"ok");
+    else setStatus("code loaded — now add the Latin syllables","ok");
+  }catch(e){ setStatus("could not build the glyphs: " + e.message, "err"); }
+}
+
+on("load-code", "click", function(){ loadFromText($("code").value); });
+on("open-file", "click", function(){ $("file-input").click(); });
+on("file-input", "change", function(e){
+  var f = e.target.files && e.target.files[0]; if(!f) return;
+  var r = new FileReader();
+  r.onload = function(){ loadFromText(String(r.result)); };
+  r.onerror = function(){ setStatus("could not read that file","err"); };
+  r.readAsText(f); this.value = "";
+});
+on("meta-toggle", "click", function(){
+  var m = document.querySelector(".meta"), hid = m.classList.toggle("hidden");
+  this.textContent = hid ? "Show" : "Hide";
+  $("meta-hint").style.display = hid ? "none" : "";
+});
+on("cv-toggle", "click", function(){
+  var v = $("code-view"), off = v.style.display === "none";
+  v.style.display = off ? "" : "none";
+  this.textContent = off ? "Hide colour view" : "Show colour view";
+  $("cv-legend").style.display = off ? "" : "none";
+  if(off) renderCodeView();
+});
+on("code", "input", function(){ renderCodeView(); });
+on("open-exp", "click", function(){ $("explainer").classList.add("on"); });
+on("exp-close", "click", function(){ $("explainer").classList.remove("on"); });
+on("explainer", "click", function(e){ if(e.target === this) this.classList.remove("on"); });
+document.addEventListener("keydown", function(e){ if(e.key==="Escape") $("explainer").classList.remove("on"); });
+["f-lang","f-gloss","f-round","f-scribe","f-id"].forEach(function(id){
+  $(id).addEventListener("input", drawCard);
+});
+on("card-bg", "change", drawCard);
+
+on("dl-card", "click", function(){
+  $("card-canvas").toBlob(function(b){
+    download(b, slugName() + ".png"); setStatus("card PNG downloaded","ok");
+  });
+});
+on("copy-card", "click", function(){
+  if(!(navigator.clipboard && window.ClipboardItem)){
+    setStatus("copying not supported here — use the download button","err"); return;
+  }
+  /* Safari rejects a clipboard write that happens after an async callback, so
+     hand ClipboardItem a promise and keep the write inside the click gesture. */
+  var blobPromise = new Promise(function(res, rej){
+    $("card-canvas").toBlob(function(b){ b ? res(b) : rej(new Error("no blob")); });
+  });
+  navigator.clipboard.write([new ClipboardItem({"image/png": blobPromise})])
+    .then(function(){ setStatus("copied — paste it into WhatsApp","ok"); })
+    .catch(function(){ setStatus("copying blocked here — use the download button","err"); });
+});
+on("dl-svg", "click", function(){
+  try{
+    var svg = buildCardSvg();
+    download(new Blob([svg],{type:"image/svg+xml;charset=utf-8"}), slugName() + ".svg");
+    setStatus("card SVG downloaded — vector, rescalable for print","ok");
+  }catch(e){ setStatus("SVG export failed: " + e.message, "err"); }
+});
+on("dl-json", "click", function(){
+  var r = buildRecord();
+  var b = new Blob([JSON.stringify(r,null,2)],{type:"application/json"});
+  download(b, slugName() + ".json"); setStatus("record downloaded as " + slugName() + ".json","ok");
+});
+on("copy-code", "click", function(){
+  navigator.clipboard.writeText($("code").value)
+    .then(function(){ setStatus("code string copied","ok"); })
+    .catch(function(){ setStatus("copy blocked","err"); });
+});
+
+document.addEventListener("keypress", function(e){
+  var t = e.target.tagName;
+  if(t==="INPUT"||t==="TEXTAREA"||t==="SELECT") return;
+  var key;
+  if(e.which===32){ key="space"; e.preventDefault(); }
+  else {
+    var ch = String.fromCharCode(e.charCode);
+    if(typeof keyMapping!=="undefined" && keyMapping[ch]!==undefined) key = keyMapping[ch];
+    else return;
+  }
+  mainCtx.addLetter(key); syncFromContext();
+});
+
+buildKeyboard();
+syncFromContext();
+setStatus("ready");
+</script>
+</body>
+</html>
