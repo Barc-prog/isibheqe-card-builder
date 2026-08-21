@@ -78,8 +78,8 @@ select:focus,input[type=text]:focus{border-color:var(--acc)}
 .fld{display:flex;flex-direction:column;gap:4px}
 .fld label{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--dim)}
 
-#code-row{padding:10px 16px;border-top:1px solid var(--bdr);display:flex;gap:8px;align-items:stretch;background:var(--bg)}
-#code{flex:1;background:var(--bg);border:1px solid var(--bdr);color:var(--dim);
+#code-row{padding:10px 16px;border-top:1px solid var(--bdr);display:flex;flex-direction:column;gap:8px;background:var(--bg)}
+#code{width:100%;background:var(--bg);border:1px solid var(--bdr);color:var(--dim);
   font-family:var(--mono);font-size:11px;padding:8px;border-radius:var(--r);
   resize:vertical;min-height:52px;outline:none;line-height:1.6}
 #code:focus{border-color:var(--acc);color:var(--txt)}
@@ -130,6 +130,40 @@ select:focus,input[type=text]:focus{border-color:var(--acc)}
 .syl.sel{outline:2px solid var(--acc)}
 #code-tools{display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap}
 .meta.hidden{display:none}
+
+/* Editing a syllable by hand in the raw string means finding a snippet in a
+   sea of brackets AND already knowing which symbol you got wrong. This edits
+   the syllable itself: pick a vowel, toggle marks, watch the glyph change. */
+#syl-editor{display:none;padding:12px 16px;border-top:1px solid var(--bdr);
+  background:#191722;border-left:3px solid var(--acc)}
+#syl-editor.on{display:block}
+#se-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+#se-title{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--acc)}
+#se-body{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+#se-preview{background:var(--sur2);border:1px solid var(--bdr);border-radius:var(--r);
+  padding:8px;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:96px}
+#se-preview canvas{filter:invert(88%);height:88px;width:auto}
+#se-preview input{width:78px;text-align:center;font-family:var(--mono);font-size:12px;
+  background:var(--bg);border:1px solid var(--bdr);color:var(--acc);border-radius:5px;padding:4px 2px;outline:none}
+#se-controls{flex:1;min-width:280px}
+.se-lbl{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--dim);margin:2px 0 5px}
+.se-row{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px}
+.se-k{width:34px;height:46px;background:var(--sur2);border:1px solid var(--bdr);border-radius:6px;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;padding:2px;transition:all .12s}
+.se-k:hover{border-color:var(--acc)}
+.se-k canvas{max-width:100%;max-height:100%;filter:invert(88%)}
+.se-k.on{background:var(--acc);border-color:var(--acc)}
+.se-k.on canvas{filter:none}
+
+/* Progressive disclosure: someone arriving to make one card should meet the
+   keyboard, the syllables, the details and the export. Everything else is
+   for repair or hand-off and stays folded until asked for. */
+#code-row.collapsed{display:none}
+#more-export.collapsed{display:none}
+#more-export{display:contents}
+.chev{display:inline-block;transition:transform .15s;margin-right:5px}
+.chev.open{transform:rotate(90deg)}
 </style>
 </head>
 <body>
@@ -163,12 +197,17 @@ select:focus,input[type=text]:focus{border-color:var(--acc)}
     </div>
 
     <div id="right-pane">
-      <div class="pane-head"><span>Syllabemes &amp; Latin</span><span id="syl-count"></span><span id="cap-note" style="margin-left:10px"></span></div>
+      <div class="pane-head"><span>Syllabemes &amp; Latin</span><span><span class="hint" id="strip-hint" style="color:var(--dimmer);margin-right:12px">click a syllable to change it</span><span id="syl-count"></span><span id="cap-note" style="margin-left:10px"></span></span></div>
       <div id="strip-area">
         <div id="strip"></div>
       </div>
 
-      <div id="code-row">
+      <div class="pane-head" style="border-top:1px solid var(--bdr)">
+        <span><span class="chev" id="code-chev">&#9656;</span>Code string &amp; colour view</span>
+        <span><span class="hint" style="color:var(--dimmer)">for pasting in, sending on, or repairing a long phrase</span>
+        <button class="btn btn-sm" id="code-toggle" style="margin-left:10px">Show</button></span>
+      </div>
+      <div id="code-row" class="collapsed">
         <div id="code-tools">
           <span class="tlbl">Code string</span>
           <button class="btn btn-sm" id="cv-toggle">Hide colour view</button>
@@ -176,6 +215,29 @@ select:focus,input[type=text]:focus{border-color:var(--acc)}
         </div>
         <div id="code-view"></div>
         <textarea id="code" spellcheck="false" placeholder="The code string appears here as you build. You can also paste one in from isibheqe.org.za/demo and press Load pasted code."></textarea>
+      </div>
+
+      <div id="syl-editor">
+        <div id="se-head">
+          <span id="se-title">Edit syllable</span>
+          <button class="btn btn-sm" id="se-prev">&larr; Prev</button>
+          <button class="btn btn-sm" id="se-next">Next &rarr;</button>
+          <button class="btn btn-sm" id="se-del">Delete this syllable</button>
+          <button class="btn btn-sm" id="se-close" style="margin-left:auto">Close</button>
+        </div>
+        <div id="se-body">
+          <div id="se-preview">
+            <div id="se-canvas"></div>
+            <input type="text" id="se-latin" placeholder="latin">
+          </div>
+          <div id="se-controls">
+            <div class="se-lbl">Vowel &mdash; pick one</div>
+            <div class="se-row" id="se-vowels"></div>
+            <div class="se-lbl">Marks &mdash; click to add or remove</div>
+            <div class="se-row" id="se-mods"></div>
+            <div class="se-row" id="se-cons"></div>
+          </div>
+        </div>
       </div>
 
       <div class="pane-head" style="border-top:1px solid var(--bdr)"><span>Entry details</span><span><span class="hint" id="meta-hint">fill these in — they print on the card</span><button class="btn btn-sm" id="meta-toggle" style="margin-left:10px">Hide</button></span></div>
@@ -201,13 +263,15 @@ select:focus,input[type=text]:focus{border-color:var(--acc)}
     <button class="btn btn-acc" id="dl-card">Download card as an image (PNG)</button>
     <button class="btn" id="copy-card">Copy card to clipboard (paste into WhatsApp)</button>
     <span class="sep"></span>
-    <button class="btn" id="dl-svg">Download card as an SVG image</button>
-    <span class="sep"></span>
     <button class="btn" id="dl-json">Download editable record (JSON)</button>
-    <button class="btn" id="copy-code">Copy code string (for isibheqe.org.za/demo)</button>
     <span class="sep"></span>
-    <span class="tlbl">card bg</span>
-    <select id="card-bg"><option value="cream">cream</option><option value="white">white</option></select>
+    <button class="btn btn-sm" id="more-toggle"><span class="chev" id="more-chev">&#9656;</span>More</button>
+    <span id="more-export" class="collapsed">
+      <button class="btn" id="dl-svg">Download card as an SVG image</button>
+      <button class="btn" id="copy-code">Copy code string (for isibheqe.org.za/demo)</button>
+      <span class="tlbl">card bg</span>
+      <select id="card-bg"><option value="cream">cream</option><option value="white">white</option></select>
+    </span>
   </div>
 </div>
 
@@ -1294,6 +1358,9 @@ function escHtml(t){ return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;")
 function renderCodeView(){
   var host = $("code-view");
   if(!host || host.style.display === "none") return;
+  var row = $("code-row");
+  if(row && row.classList && typeof row.classList.contains === "function"
+     && row.classList.contains("collapsed")) return;
   var raw = $("code").value;
   var units = splitCodeUnits(raw);
   if(!units.length){ host.innerHTML = '<span style="color:var(--dimmer)">nothing to show yet</span>'; return; }
@@ -1340,14 +1407,178 @@ function markSelection(){
    snippet itself off screen -- the opposite of helpful on a long phrase.
    The three highlights (snippet, tile, card glyph) are enough to locate a
    syllable without moving anything under the person's cursor. */
+
+/* ---- Structured syllable editing -------------------------------------
+   Finding a snippet in the raw string only helps if you also know which
+   symbol you typed wrong. Here the glyph is redrawn as you toggle, so the
+   fix is recognised visually rather than decoded from text. ---------- */
+
+function tokenIndexOfGlyph(n){
+  var count = 0;
+  for(var i=0;i<state.tokens.length;i++){
+    var t = state.tokens[i];
+    if(t===" "||t==="\n") continue;
+    count++;
+    if(count===n) return i;
+  }
+  return -1;
+}
+function glyphCount(){
+  return state.tokens.filter(function(t){ return t!==" " && t!=="\n"; }).length;
+}
+function tokenParts(tok){
+  if(typeof tok === "string") return {v:tok, c:[]};
+  return {v:tok[0], c:(tok[1]||[]).slice()};
+}
+function partsToToken(p){ return p.c.length ? [p.v, p.c] : p.v; }
+
+/* Rewrite one syllable in place and re-render everything from the engine,
+   keeping the Latin boxes (positions are unchanged by an in-place edit). */
+function writeSyllable(glyphNo, parts){
+  var ti = tokenIndexOfGlyph(glyphNo);
+  if(ti < 0) return;
+  var toks = state.tokens.slice();
+  toks[ti] = partsToToken(parts);
+  var keepLatin = {};
+  for(var k in state.latin){ if(state.latin.hasOwnProperty(k)) keepLatin[k] = state.latin[k]; }
+  try{
+    mainCtx.reset(); mainCtx.cursor = new Point(0,0);
+    mainCtx.deserialize(JSON.stringify(toks));
+  }catch(e){ setStatus("could not apply that change: " + e.message, "err"); return; }
+  var raw = mainCtx.serialize();
+  $("code").value = raw;
+  state.tokens = JSON.parse(raw);
+  state.latin = keepLatin;
+  drawStrip(); renderCodeView(); openSyllableEditor(glyphNo);
+  setStatus("syllable " + glyphNo + " updated", "ok");
+}
+
+function deleteSyllable(glyphNo){
+  var ti = tokenIndexOfGlyph(glyphNo);
+  if(ti < 0) return;
+  var toks = state.tokens.slice();
+  toks.splice(ti,1);
+  var newLatin = {}, o = 0;
+  for(var i=0;i<state.tokens.length;i++){
+    if(i===ti) continue;
+    if(state.latin[i]) newLatin[o] = state.latin[i];
+    o++;
+  }
+  try{
+    mainCtx.reset(); mainCtx.cursor = new Point(0,0);
+    mainCtx.deserialize(JSON.stringify(toks));
+  }catch(e){ setStatus("could not delete: " + e.message, "err"); return; }
+  var raw = mainCtx.serialize();
+  $("code").value = raw;
+  state.tokens = JSON.parse(raw);
+  state.latin = newLatin;
+  drawStrip(); renderCodeView();
+  var total = glyphCount();
+  if(total === 0){ closeSyllableEditor(); }
+  else { selectedGlyph = Math.min(glyphNo, total); openSyllableEditor(selectedGlyph); }
+  setStatus("syllable removed", "ok");
+}
+
+var seBuilt = false;
+function buildEditorKeys(){
+  if(seBuilt) return;
+  seBuilt = true;
+  var vowelHost = $("se-vowels");
+  VOWELS.concat(SYLLABIC_CONSONANTS).forEach(function(letter){
+    var d = document.createElement("div");
+    d.className = "se-k"; d.title = letter;
+    d.setAttribute("data-v", letter);
+    d.appendChild(makeKeyCanvas(letter, 3));
+    d.addEventListener("click", function(){
+      var p = currentParts(); if(!p) return;
+      p.v = letter;
+      if(SYLLABIC_CONSONANTS.indexOf(letter) >= 0) p.c = [];
+      writeSyllable(selectedGlyph, p);
+    });
+    vowelHost.appendChild(d);
+  });
+  [[$("se-mods"), MODS], [$("se-cons"), CONSONANTS.filter(function(c){ return MODS.indexOf(c)<0; })]]
+  .forEach(function(pair){
+    pair[1].forEach(function(letter){
+      var d = document.createElement("div");
+      d.className = "se-k"; d.title = letter;
+      d.setAttribute("data-c", letter);
+      d.appendChild(makeKeyCanvas(letter, 3));
+      d.addEventListener("click", function(){
+        var p = currentParts(); if(!p) return;
+        var at = p.c.indexOf(letter);
+        if(at >= 0) p.c.splice(at,1); else p.c.push(letter);
+        writeSyllable(selectedGlyph, p);
+      });
+      pair[0].appendChild(d);
+    });
+  });
+}
+
+function currentParts(){
+  var ti = tokenIndexOfGlyph(selectedGlyph);
+  if(ti < 0) return null;
+  return tokenParts(state.tokens[ti]);
+}
+
+function openSyllableEditor(n){
+  if(!n || n < 1){ closeSyllableEditor(); return; }
+  renderCodeView();
+  selectedGlyph = n;
+  buildEditorKeys();
+  var p = currentParts();
+  if(!p){ closeSyllableEditor(); return; }
+  var ti = tokenIndexOfGlyph(n);
+
+  var ed = $("syl-editor"); if(ed) ed.classList.add("on");
+  $("se-title").textContent = "Edit syllable " + n + " of " + glyphCount();
+
+  var host = $("se-canvas"); if(host) host.innerHTML = "";
+  try{ if(host) host.appendChild(cloneCanvas(renderSyllable(state.tokens[ti]))); }catch(e){}
+
+  var li = $("se-latin");
+  if(li){
+  li.value = state.latin[ti] || "";
+  li.oninput = function(){ state.latin[ti] = this.value; updateLatin(); drawCard(); drawStripLatin(ti, this.value); };
+  }
+
+  var vh = $("se-vowels");
+  if(vh && vh.children){
+    Array.prototype.forEach.call(vh.children, function(el){
+      el.classList.toggle("on", el.getAttribute("data-v") === p.v);
+    });
+  }
+  [$("se-mods"), $("se-cons")].forEach(function(hostEl){
+    if(!hostEl || !hostEl.children) return;
+    Array.prototype.forEach.call(hostEl.children, function(el){
+      el.classList.toggle("on", p.c.indexOf(el.getAttribute("data-c")) >= 0);
+    });
+  });
+  markSelection();
+}
+
+/* keep the strip's own Latin box in step without rebuilding the whole strip */
+function drawStripLatin(tokenIdx, val){
+  var tiles = document.querySelectorAll(".syl");
+  for(var i=0;i<tiles.length;i++){
+    if(tiles[i].getAttribute("data-ti") === String(tokenIdx)){
+      var inp = tiles[i].querySelector("input");
+      if(inp && inp.value !== val) inp.value = val;
+      return;
+    }
+  }
+}
+
+function closeSyllableEditor(){
+  var ed = $("syl-editor"); if(ed) ed.classList.remove("on");
+  selectedGlyph = -1;
+  markSelection();
+}
+
 function selectGlyph(n){
   selectedGlyph = n;
   markSelection();
-  var tile = document.querySelector('.syl[data-g="' + n + '"]');
-  if(tile){
-    var inp = tile.querySelector("input");
-    if(inp) inp.focus({preventScroll:true});
-  }
+  openSyllableEditor(n);
   updateSelectionOverlay();
 }
 
@@ -1579,8 +1810,10 @@ function drawCardNow(){
    clipboard export paths, so the highlight can never leak into a shared
    card. */
 function updateSelectionOverlay(){
-  var cv = $("card-overlay"); if(!cv) return;
+  var cv = $("card-overlay");
+  if(!cv || typeof cv.getContext !== "function") return;
   var g = cv.getContext("2d");
+  if(!g) return;
   g.clearRect(0,0,cv.width,cv.height);
   if(selectedGlyph < 1 || !lastCardOps) return;
   var op = lastCardOps.ops.filter(function(o){ return o.t==="glyph" && o.gi===selectedGlyph; })[0];
@@ -1834,6 +2067,20 @@ on("cv-toggle", "click", function(){
   if(off) renderCodeView();
 });
 on("code", "input", function(){ renderCodeView(); });
+on("code-toggle", "click", function(){
+  var row = $("code-row"), hidden = row.classList.toggle("collapsed");
+  this.textContent = hidden ? "Show" : "Hide";
+  var ch = $("code-chev"); if(ch) ch.classList.toggle("open", !hidden);
+  if(!hidden) renderCodeView();
+});
+on("more-toggle", "click", function(){
+  var m = $("more-export"), hidden = m.classList.toggle("collapsed");
+  var ch = $("more-chev"); if(ch) ch.classList.toggle("open", !hidden);
+});
+on("se-close", "click", function(){ closeSyllableEditor(); });
+on("se-del", "click", function(){ if(selectedGlyph > 0) deleteSyllable(selectedGlyph); });
+on("se-prev", "click", function(){ if(selectedGlyph > 1) selectGlyph(selectedGlyph - 1); });
+on("se-next", "click", function(){ if(selectedGlyph < glyphCount()) selectGlyph(selectedGlyph + 1); });
 on("open-exp", "click", function(){ $("explainer").classList.add("on"); });
 on("exp-close", "click", function(){ $("explainer").classList.remove("on"); });
 on("explainer", "click", function(e){ if(e.target === this) this.classList.remove("on"); });
