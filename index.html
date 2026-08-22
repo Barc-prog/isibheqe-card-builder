@@ -271,6 +271,8 @@ select:focus,input[type=text]:focus{border-color:var(--acc)}
       <button class="btn" id="copy-code">Copy code string (for isibheqe.org.za/demo)</button>
       <span class="tlbl">card bg</span>
       <select id="card-bg"><option value="cream">cream</option><option value="white">white</option></select>
+      <span class="tlbl">shape</span>
+      <select id="card-shape"><option value="square">square (1080×1080)</option><option value="landscape">landscape (1440×1080)</option></select>
     </span>
   </div>
 </div>
@@ -1672,14 +1674,14 @@ function wrapText(ctx, text, maxW){
 var W = 1080, H = 1080;
 var BASE_GW = 108, BASE_GH = 150, BASE_LAT = 34, BASE_GAP = 14, BASE_WGAP = 34, BASE_RPAD = 26;
 
-var TEXT_W = 900, FOOT = 156;
+var FOOT = 156;  // footer height stays fixed -- only width changes between shapes
 
 /* Latin and gloss share one vertical budget. The gloss is sized relative to
    the Latin, so a long user-typed gloss shrinks the pair together instead of
    being crushed or overrunning the footer. Line height includes descender room
    so letters like g are never clipped. */
 function fitTextBlock(latin, gloss){
-  var mc = measureCtx(), budget = 300;
+  var mc = measureCtx(), budget = 300, TEXT_W = W - 180;
   var best = null;
   for(var lf = 54; lf >= 22; lf -= 2){
     mc.font = "600 " + lf + "px Syne, sans-serif";
@@ -2067,6 +2069,25 @@ on("cv-toggle", "click", function(){
   if(off) renderCodeView();
 });
 on("code", "input", function(){ renderCodeView(); });
+/* Square stays the default -- it's the better shape for WhatsApp Status.
+   Landscape is an opt-in for entries where row count actually matters:
+   choruses, proverb sets, anything long enough to wrap repeatedly. Height
+   is deliberately never touched -- all the vertical budget (text wrap,
+   footer clearance, row search) was tuned against H=1080, so only width
+   changes between the two shapes. */
+var SHAPES = { square: {w:1080, h:1080}, landscape: {w:1440, h:1080} };
+function applyCardShape(mode){
+  var s = SHAPES[mode] || SHAPES.square;
+  W = s.w; H = s.h;
+  var c1 = $("card-canvas"), c2 = $("card-overlay");
+  if(c1){ c1.width = W; c1.height = H; }
+  if(c2){ c2.width = W; c2.height = H; }
+  // sylCache deliberately untouched: syllable tiles render at a fixed unit
+  // size independent of card shape, so nothing about them is invalidated.
+  drawCard();
+}
+on("card-shape", "change", function(){ applyCardShape(this.value); });
+
 on("code-toggle", "click", function(){
   var row = $("code-row"), hidden = row.classList.toggle("collapsed");
   this.textContent = hidden ? "Show" : "Hide";
