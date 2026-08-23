@@ -164,6 +164,54 @@ select:focus,input[type=text]:focus{border-color:var(--acc)}
 #more-export{display:contents}
 .chev{display:inline-block;transition:transform .15s;margin-right:5px}
 .chev.open{transform:rotate(90deg)}
+
+/* ---------- mobile: rotate prompt + compact landscape ----------
+   Screen Orientation lock only works inside fullscreen, which needs a user
+   gesture, so a page cannot force landscape on first load. Instead: detect
+   narrow-and-portrait, ask for a rotation, and get out of the way the moment
+   it happens. Everything here is behind media queries a desktop never hits. */
+
+/* mobile browsers mis-report 100vh (address bar), leaving content cut off */
+html,body{height:100vh;height:100dvh}
+#app{height:100vh;height:100dvh}
+
+#rotate-gate{position:fixed;inset:0;z-index:200;background:var(--bg);
+  display:none;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:32px 26px;gap:16px}
+#rotate-gate .rg-icon{font-size:52px;line-height:1;animation:rgTilt 2.2s ease-in-out infinite}
+@keyframes rgTilt{0%,55%,100%{transform:rotate(0deg)}75%,90%{transform:rotate(-90deg)}}
+#rotate-gate h3{font-size:19px;color:var(--acc);letter-spacing:.02em}
+#rotate-gate p{font-size:13.5px;color:var(--dim);max-width:300px;line-height:1.6}
+#rotate-gate .btn{margin-top:6px}
+
+@media (max-width:900px) and (orientation:portrait){
+  #rotate-gate{display:flex}
+  body.rg-dismissed #rotate-gate{display:none}
+}
+
+/* short viewports (phone landscape): tighten everything so the card,
+   keyboard and syllable strip all stay reachable without scrolling past
+   the point of usefulness */
+@media (max-height:560px){
+  #app{grid-template-rows:42px 1fr auto}
+  #toolbar{padding:0 10px;gap:6px}
+  #logo{font-size:11px;letter-spacing:.12em}
+  .btn{font-size:11px;padding:5px 8px}
+  .btn-sm{font-size:10px;padding:3px 7px}
+  #workspace{grid-template-columns:210px 1fr}
+  .key{width:31px;height:42px}
+  .kb{gap:3px;padding:7px 8px}
+  .kb-lbl{padding:6px 10px 1px;font-size:9px}
+  .pane-head{padding:5px 10px;font-size:9px}
+  .syl canvas{height:52px}
+  .syl input{width:52px;font-size:11px}
+  #strip-area{padding:10px 10px;min-height:80px}
+  .meta{padding:8px 10px;gap:7px;grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+  #footer{padding:6px 10px;gap:5px}
+  #card-canvas,#preview-stack{max-width:230px}
+  #preview-wrap{padding:10px}
+  .se-k{width:29px;height:39px}
+}
 </style>
 </head>
 <body>
@@ -277,6 +325,14 @@ select:focus,input[type=text]:focus{border-color:var(--acc)}
   </div>
 </div>
 
+
+
+<div id="rotate-gate">
+  <div class="rg-icon">&#128241;</div>
+  <h3>Turn your phone sideways</h3>
+  <p>The card builder needs a wider screen. Rotate your phone to landscape and it will open straight away.</p>
+  <button class="btn btn-sm" id="rg-skip">Continue anyway</button>
+</div>
 
 <div id="explainer"><div id="exp-box">
   <button class="btn btn-sm" id="exp-close">Close</button>
@@ -2159,6 +2215,8 @@ document.addEventListener("keypress", function(e){
   }
   mainCtx.addLetter(key); syncFromContext();
 });
+
+on("rg-skip", "click", function(){ document.body.classList.add("rg-dismissed"); });
 
 buildKeyboard();
 syncFromContext();
