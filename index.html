@@ -1294,11 +1294,9 @@ var SYL_UNIT = 5;
    triangle-with-mark), which is a correctness bug, not a cosmetic one.
    OFFSET shifts the glyph's drawing origin so marks that extend above/left
    of the vowel (negative coordinates) still land inside the canvas.
-   This same ratio must stay consistent between renderSyllable (the strip
-   tiles and syllable editor preview) and cardOps/buildCardSvg (the actual
-   exported card) -- the same canvas gets scaled directly onto the card, so
-   if these ever disagree, glyphs distort or clip on export even though the
-   small on-screen tiles look fine. */
+   This frame is now only a safe canvas to draw into, not the size anything
+   is displayed at. Every consumer crops to measured ink (see phraseCrop),
+   so the padding here costs nothing and can stay generous. */
 var GLYPH_FRAME_W_U = 40, GLYPH_FRAME_H_U = 46, GLYPH_OFFSET_X_U = 10, GLYPH_OFFSET_Y_U = 9;
 var state = { tokens: [], latin: {} };
 
@@ -1405,6 +1403,117 @@ function renderSyllable(token){
   else { glyph = f.newVowel(vowel, origin); for(var i=0;i<cons.length;i++){ glyph.addConsonant(cons[i]); } }
   glyph.renderOn(t);
   sylCache[key] = cv; sylCacheN++; return cv;
+}
+
+/* ---- Ink cropping ----------------------------------------------------
+   The render frame is sized for the worst mark any combination can throw at
+   it. Swept over every vowel x consonant x consonant the keyboard allows
+   (9930 combinations), the furthest ink ever reaches is 36.7 units across
+   and 33.7 units down. A plain vowel uses about 16 x 16 of that. Treating
+   the whole frame as the glyph is therefore mostly a padding tax, and it is
+   what made the cards go loose: a vowel drawn in a 150px slot was landing
+   about 37px of actual ink, with the rest air.
+
+   So measure the ink and draw only that. The box is the union across the
+   tokens present in the phrase, not one box per glyph -- crop each glyph to
+   its own ink and every syllable sits on its own baseline, so a row of them
+   ripples. The union keeps them registered to a shared origin while still
+   discarding the margin nobody in this particular phrase is using: an all
+   vowels phrase crops tight, a phrase with a nasal keeps the headroom it
+   needs.
+
+   Bounds come from the drawing calls rather than from canvas pixels, so the
+   canvas card and the SVG export are measuring the same geometry by
+   construction -- the agreement the frame comment above asks for. */
+function boundsTarget(bb){
+  function pt(x,y){ if(x<bb.x0)bb.x0=x; if(x>bb.x1)bb.x1=x; if(y<bb.y0)bb.y0=y; if(y>bb.y1)bb.y1=y; }
+  return {
+    drawLine: function(a,b){ pt(a.x,a.y); pt(b.x,b.y); },
+    /* An arc's extent is not its circle's extent, so walk it rather than
+       taking the whole radius -- a tone mark's short curve would otherwise
+       claim as much room as a full circle and undo the crop. */
+    drawArc: function(x,y,r,start,end){
+      for(var i=0;i<=24;i++){ var a = start+(end-start)*i/24; pt(x+r*Math.cos(a), y+r*Math.sin(a)); }
+    },
+    fillCircle: function(x,y,r){ pt(x-r,y-r); pt(x+r,y+r); }
+  };
+}
+
+var inkCache = {};
+function inkBounds(token){
+  var key = JSON.stringify(token);
+  if(inkCache.hasOwnProperty(key)) return inkCache[key];
+  var bb = {x0:Infinity, y0:Infinity, x1:-Infinity, y1:-Infinity}, out = null;
+  try{
+    buildGlyph(token, new GlyphFactory(SYL_UNIT), SYL_UNIT).renderOn(boundsTarget(bb));
+    if(isFinite(bb.x0) && isFinite(bb.y0)) out = bb;
+  }catch(e){}
+  inkCache[key] = out;
+  return out;
+}
+
+var FULL_FRAME = {x:0, y:0, w:Math.round(SYL_UNIT*GLYPH_FRAME_W_U), h:Math.round(SYL_UNIT*GLYPH_FRAME_H_U)};
+var cropSig = null, cropBox = FULL_FRAME;
+function phraseCrop(){
+  var keys = [], seen = {}, i;
+  for(i=0;i<state.tokens.length;i++){
+    var tok = state.tokens[i];
+    if(tok === " " || tok === "\n") continue;
+    var k = JSON.stringify(tok);
+    if(!seen[k]){ seen[k] = 1; keys.push(k); }
+  }
+  keys.sort();
+  var sig = keys.join("|");
+  if(sig === cropSig) return cropBox;
+  cropSig = sig;
+  var bb = {x0:Infinity, y0:Infinity, x1:-Infinity, y1:-Infinity}, any = false;
+  for(i=0;i<keys.length;i++){
+    var b = null;
+    try{ b = inkBounds(JSON.parse(keys[i])); }catch(e){}
+    if(!b) continue;
+    any = true;
+    if(b.x0 < bb.x0) bb.x0 = b.x0;
+    if(b.y0 < bb.y0) bb.y0 = b.y0;
+    if(b.x1 > bb.x1) bb.x1 = b.x1;
+    if(b.y1 > bb.y1) bb.y1 = b.y1;
+  }
+  if(!any){ cropBox = FULL_FRAME; return cropBox; }
+  /* Half a stroke width, so round caps are not shaved, plus a little air. */
+  var pad = SYL_UNIT*0.9;
+  var x0 = Math.max(0, Math.floor(bb.x0 - pad)), y0 = Math.max(0, Math.floor(bb.y0 - pad));
+  var x1 = Math.min(FULL_FRAME.w, Math.ceil(bb.x1 + pad)), y1 = Math.min(FULL_FRAME.h, Math.ceil(bb.y1 + pad));
+  cropBox = {x:x0, y:y0, w:Math.max(1, x1-x0), h:Math.max(1, y1-y0)};
+  return cropBox;
+}
+
+/* One vowel body, measured the same way, used as the fixed reference the card
+   scales against. Without it the crop's own height would set the size, so
+   adding a single nasal to a phrase would shrink every other syllable on the
+   card to make room -- the writing equivalent of dropping the x-height
+   because one word happens to carry an accent. Marks should extend the box
+   upward, not compress what is underneath them. */
+var bodyH = 0;
+function bodyHeight(){
+  if(bodyH) return bodyH;
+  var lo = Infinity, hi = -Infinity;
+  VOWELS.concat(SYLLABIC_CONSONANTS).forEach(function(v){
+    var b = inkBounds(v);
+    if(!b) return;
+    if(b.y0 < lo) lo = b.y0;
+    if(b.y1 > hi) hi = b.y1;
+  });
+  bodyH = isFinite(lo) ? (hi - lo + SYL_UNIT*1.8) : FULL_FRAME.h;
+  return bodyH;
+}
+
+/* Strip tiles and the editor preview want a real cropped canvas rather than
+   a source rectangle, since their size is set in CSS. */
+function croppedCanvas(token){
+  var src = renderSyllable(token), b = phraseCrop();
+  var c = document.createElement("canvas");
+  c.width = b.w; c.height = b.h;
+  c.getContext("2d").drawImage(src, b.x, b.y, b.w, b.h, 0, 0, b.w, b.h);
+  return c;
 }
 
 function cloneCanvas(src){
@@ -1679,7 +1788,7 @@ function openSyllableEditor(n){
   }
 
   var host = $("se-canvas"); if(host) host.innerHTML = "";
-  try{ if(host) host.appendChild(cloneCanvas(renderSyllable(state.tokens[ti]))); }catch(e){}
+  try{ if(host) host.appendChild(croppedCanvas(state.tokens[ti])); }catch(e){}
 
   var li = $("se-latin");
   if(li){
@@ -1757,7 +1866,7 @@ function drawStrip(){
     var idx = document.createElement("span");
     idx.className = "idx"; idx.textContent = real;
     wrap.appendChild(idx);
-    try{ wrap.appendChild(cloneCanvas(renderSyllable(tok))); }catch(e){
+    try{ wrap.appendChild(croppedCanvas(tok)); }catch(e){
       var er = document.createElement("div"); er.style.cssText="color:var(--red);font-size:10px;height:72px";
       er.textContent="?"; wrap.appendChild(er);
     }
@@ -1815,7 +1924,15 @@ function wrapText(ctx, text, maxW){
 }
 
 var W = 1080, H = 1080;
-var BASE_GW = 108, BASE_GH = 150, BASE_LAT = 34, BASE_GAP = 14, BASE_WGAP = 34, BASE_RPAD = 26;
+/* These are now measured against ink, not against the render frame, so they
+   mean what they say: BASE_GH is how tall a plain vowel body draws on a
+   full-size card, and BASE_GAP is the real space between two glyphs. A
+   syllable carrying a tall mark draws taller than BASE_GH, as it should.
+   BASE_GW is gone -- slot width follows the crop's own aspect, so a narrow
+   phrase packs narrow and nothing is reserved for marks it does not use.
+   92 and 24 land the card back on roughly the density it had before the
+   render frame was widened, which is the look these were tuned for. */
+var BASE_GH = 92, BASE_LAT = 40, BASE_GAP = 24, BASE_WGAP = 34, BASE_RPAD = 26;
 
 var FOOT = 156;  // footer height stays fixed -- only width changes between shapes
 
@@ -1847,6 +1964,10 @@ function fitTextBlock(latin, gloss){
 }
 
 function computeLayout(){
+  /* One scale factor takes the crop out of glyph space and onto the card, so
+     the slot is the ink box and nothing else. */
+  var CROP = phraseCrop(), K = BASE_GH/bodyHeight();
+  var GH = CROP.h*K, GW = CROP.w*K;
   var units = [];
   state.tokens.forEach(function(tok,i){
     if(tok===" "||tok==="\n"){ units.push({br:tok}); return; }
@@ -1858,7 +1979,7 @@ function computeLayout(){
   var maxW = W - 150;
   var s = 1.0, rows = [], overflow = false;
   for(s = 1.0; s >= 0.34; s -= 0.04){
-    var gw=BASE_GW*s, gh=BASE_GH*s, lat=BASE_LAT*s, gap=BASE_GAP*s, wgap=BASE_WGAP*s, rpad=BASE_RPAD*s;
+    var gh=GH*s, gw=GW*s, lat=BASE_LAT*s, gap=BASE_GAP*s, wgap=BASE_WGAP*s, rpad=BASE_RPAD*s;
     rows = [[]]; var rw = 0;
     units.forEach(function(u){
       if(u.br === "\n"){ rows.push([]); rw = 0; return; }
@@ -1870,7 +1991,7 @@ function computeLayout(){
     if(rows.length * (gh + lat + rpad) <= availH) break;
     if(s <= 0.38) overflow = true;
   }
-  return {units:units, rows:rows, s:s, overflow:overflow, T:T, TOP:TOP, availH:availH};
+  return {units:units, rows:rows, s:s, overflow:overflow, T:T, TOP:TOP, availH:availH, crop:CROP, GH:GH, GW:GW};
 }
 
 /* "Fits" and "readable" are different thresholds. A 160-glyph phrase still
@@ -1889,8 +2010,8 @@ function updateCapNote(L){
 
 function cardOps(){
   var L = computeLayout(), C = cardColors(), ops = [], glyphNo = 0;
-  var s=L.s, gw=BASE_GW*s, gh=BASE_GH*s, lat=BASE_LAT*s, gap=BASE_GAP*s, wgap=BASE_WGAP*s, rpad=BASE_RPAD*s;
-  var rowH = gh + lat + rpad, AR = GLYPH_FRAME_W_U/GLYPH_FRAME_H_U;
+  var s=L.s, gh=L.GH*s, gw=L.GW*s, lat=BASE_LAT*s, gap=BASE_GAP*s, wgap=BASE_WGAP*s, rpad=BASE_RPAD*s;
+  var rowH = gh + lat + rpad;
   var y = L.TOP + Math.max(0, (L.availH - L.rows.length*rowH)/2);
   L.rows.forEach(function(row){
     var tw = 0;
@@ -1899,18 +2020,11 @@ function cardOps(){
     row.forEach(function(u){
       if(u.br===" "){ x += wgap; return; }
       glyphNo++;
-      /* Inscribe the glyph inside its slot on both axes, not just centre it.
-         The render frame's own proportions (set by how much room nasals and
-         other tall/wide marks need) don't necessarily match the layout
-         slot's proportions -- if drawn at full gh, a glyph can come out
-         wider than its slot and overlap the next one. Shrinking to fit
-         keeps every glyph fully inside its own slot; the height that comes
-         out of this also becomes the true height used for centring and,
-         via the op's own h, for the SVG scale factor -- so canvas and SVG
-         export stay in agreement automatically. */
-      var dw = gh*AR, dh = gh;
-      if(dw > gw){ dw = gw; dh = dw/AR; }
-      ops.push({t:"glyph", tok:u.tok, gi:glyphNo, x:x+(gw-dw)/2, y:y+(gh-dh), w:dw, h:dh});
+      /* The slot is the crop box scaled up, so the glyph fills it exactly on
+         both axes: nothing to inscribe, nothing to centre, no dead margin
+         either side. o.h stays the SVG scale factor, and o.w/o.h is the crop
+         aspect, which is how canvas and SVG stay in agreement. */
+      ops.push({t:"glyph", tok:u.tok, gi:glyphNo, x:x, y:y, w:gw, h:gh});
       if(u.latin) ops.push({t:"txt", s:u.latin, x:x+gw/2, y:y+gh+lat, fs:Math.round(30*s),
                             fam:"'JetBrains Mono', monospace", weight:"500", col:C.ink});
       x += gw + gap;
@@ -1945,8 +2059,9 @@ function drawCardNow(){
   lastCardOps = R;
   updateCapNote(R.L);
   g.clearRect(0,0,W,H); g.fillStyle = C.bg; g.fillRect(0,0,W,H);
+  var CROP = R.L.crop;
   R.ops.forEach(function(o){
-    if(o.t==="glyph"){ try{ g.drawImage(renderSyllable(o.tok), o.x, o.y, o.w, o.h); }catch(e){} }
+    if(o.t==="glyph"){ try{ g.drawImage(renderSyllable(o.tok), CROP.x, CROP.y, CROP.w, CROP.h, o.x, o.y, o.w, o.h); }catch(e){} }
     else if(o.t==="txt"){
       g.textAlign = o.align || "center"; g.textBaseline = "alphabetic"; g.fillStyle = o.col;
       g.font = (o.italic?"italic ":"") + o.weight + " " + o.fs + "px " + o.fam;
@@ -1981,14 +2096,17 @@ function updateSelectionOverlay(){
 function esc(t){ return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 
 function buildCardSvg(){
-  var R = cardOps(), C = R.C, GU = 5, NAT_H = GU*GLYPH_FRAME_H_U;
+  var R = cardOps(), C = R.C, GU = SYL_UNIT, CROP = R.L.crop;
   var out = ['<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'">'];
   out.push('<rect width="'+W+'" height="'+H+'" fill="'+C.bg+'"/>');
   R.ops.forEach(function(o){
     if(o.t==="glyph"){
-      var k = o.h/NAT_H, parts;
+      /* Scale by the crop's height, not the frame's, and pull the drawing
+         back by the crop origin -- the same window the canvas gets as its
+         source rectangle. */
+      var k = o.h/CROP.h, parts;
       try{ parts = glyphSvgParts(o.tok, GU, C.ink); }catch(e){ return; }
-      out.push('<g transform="translate('+o.x+','+o.y+') scale('+k+')" stroke="'+C.ink+'" fill="none" stroke-width="'+(GU/3.0)+'" stroke-linecap="round">'+parts+'</g>');
+      out.push('<g transform="translate('+(o.x - CROP.x*k)+','+(o.y - CROP.y*k)+') scale('+k+')" stroke="'+C.ink+'" fill="none" stroke-width="'+(GU/3.0)+'" stroke-linecap="round">'+parts+'</g>');
     } else if(o.t==="txt"){
       var anchor = o.align==="left" ? "start" : (o.align==="right" ? "end" : "middle");
       out.push('<text x="'+o.x+'" y="'+o.y+'" text-anchor="'+anchor+'" font-family="'+o.fam.replace(/\x27/g,"")+'" font-weight="'+o.weight+'"'
