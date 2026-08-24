@@ -37,6 +37,11 @@ select:focus,input[type=text]:focus{border-color:var(--acc)}
 .btn:hover{border-color:var(--acc);color:var(--acc)}
 .btn-acc{background:var(--acc);border-color:var(--acc);color:#0e0d12}
 .btn-acc:hover{background:#f0b84a;border-color:#f0b84a;color:#0e0d12}
+/* Undo/Space/Clear: lighter than the default button so they read as distinct
+   from the rest of the toolbar, but quiet -- not competing with the accent
+   colour reserved for the primary action (Copy/Download). */
+.btn-quiet{background:#2c2a40;border-color:#403c5c;color:var(--txt)}
+.btn-quiet:hover{background:#38344f;border-color:var(--acc);color:var(--acc)}
 .btn-sm{font-size:11px;padding:4px 9px}
 
 #workspace{display:grid;grid-template-columns:320px 1fr;overflow:hidden;min-height:0}
@@ -175,18 +180,24 @@ select:focus,input[type=text]:focus{border-color:var(--acc)}
 html,body{height:100vh;height:100dvh}
 #app{height:100vh;height:100dvh}
 
-#rotate-gate{position:fixed;inset:0;z-index:200;background:var(--bg);
-  display:none;flex-direction:column;align-items:center;justify-content:center;
-  text-align:center;padding:32px 26px;gap:16px}
-#rotate-gate .rg-icon{font-size:52px;line-height:1;animation:rgTilt 2.2s ease-in-out infinite}
-@keyframes rgTilt{0%,55%,100%{transform:rotate(0deg)}75%,90%{transform:rotate(-90deg)}}
-#rotate-gate h3{font-size:19px;color:var(--acc);letter-spacing:.02em}
-#rotate-gate p{font-size:13.5px;color:var(--dim);max-width:300px;line-height:1.6}
-#rotate-gate .btn{margin-top:6px}
-
-@media (max-width:900px) and (orientation:portrait){
-  #rotate-gate{display:flex}
-  body.rg-dismissed #rotate-gate{display:none}
+/* ---------- portrait: a real layout, not a "please rotate" wall ----------
+   The earlier version forced landscape because the 320px keyboard column
+   left almost nothing for the syllable strip in portrait. The actual fix is
+   a collapsible keyboard: closed by default on a narrow screen, the strip
+   and card get the whole first screen; open it to pick a shape, close it
+   again to review what you built. This also answers "the keyboard eats the
+   screen once I'm on a second row of syllables" -- collapse it and the
+   whole screen is the strip, however many rows it has. */
+#kb-toggle{display:none}
+@media (max-width:900px){
+  #workspace{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+  #left-pane{border-right:none;border-bottom:1px solid var(--bdr);
+    max-height:46vh;transition:max-height .18s ease}
+  #left-pane.kb-collapsed{max-height:0;border-bottom:none;overflow:hidden}
+  #kb-toggle{display:inline-flex}
+  #card-canvas,#preview-stack{max-width:100%}
+  #footer{gap:5px}
+  .btn{font-size:11px;padding:5px 9px}
 }
 
 /* short viewports (phone landscape): tighten everything so the card,
@@ -220,9 +231,9 @@ html,body{height:100vh;height:100dvh}
   <div id="toolbar">
     <span id="logo">isiBheqe Card Builder</span>
     <span class="sep"></span>
-    <button class="btn btn-sm" id="undo">Undo</button>
-    <button class="btn btn-sm" id="space">Space</button>
-    <button class="btn btn-sm" id="clear">Clear</button>
+    <button class="btn btn-sm btn-quiet" id="undo">Undo</button>
+    <button class="btn btn-sm btn-quiet" id="space">Space</button>
+    <button class="btn btn-sm btn-quiet" id="clear">Clear</button>
     <span class="sep"></span>
     <button class="btn btn-sm" id="load-code">Load pasted code</button>
     <button class="btn btn-sm" id="open-file">Open a saved file…</button>
@@ -235,7 +246,10 @@ html,body{height:100vh;height:100dvh}
   <div id="workspace">
 
     <div id="left-pane">
-      <div class="pane-head"><span>Keyboard</span><span class="hint">click a shape to add it</span></div>
+      <div class="pane-head"><span>Keyboard</span>
+        <span><span class="hint" id="kb-hint">click a shape to add it</span>
+        <button class="btn btn-sm" id="kb-toggle">Hide</button></span>
+      </div>
       <div class="kb-lbl">Vowels &amp; syllabic nasals</div>
       <div class="kb" id="kb-vowels"></div>
       <div class="kb-lbl">Modifiers</div>
@@ -293,8 +307,8 @@ html,body{height:100vh;height:100dvh}
         <div class="fld"><label>Language</label><input type="text" id="f-lang" placeholder="which language? e.g. Tshivenda"></div>
         <div class="fld"><label>Full Latin (fills itself)</label><input type="text" id="f-latin" placeholder="builds itself from the boxes above"></div>
         <div class="fld"><label>Gloss (English)</label><input type="text" id="f-gloss" placeholder="what does it mean? e.g. Good morning"></div>
-        <div class="fld"><label>Round</label><input type="text" id="f-round" value="seed"></div>
-        <div class="fld"><label>Scribe</label><input type="text" id="f-scribe" placeholder="who rendered it? e.g. Bandile"></div>
+        <div class="fld"><label>Theme</label><input type="text" id="f-round" value="seed" placeholder="seed, or a theme name"></div>
+        <div class="fld"><label>Scribe</label><input type="text" id="f-scribe" placeholder="Who made this card?"></div>
         <div class="fld"><label>Entry id</label><input type="text" id="f-id" placeholder="short file name, e.g. seed-01"></div>
       </div>
 
@@ -310,8 +324,10 @@ html,body{height:100vh;height:100dvh}
   <div id="footer">
     <button class="btn btn-acc" id="dl-card">Download card as an image (PNG)</button>
     <button class="btn" id="copy-card">Copy card to clipboard (paste into WhatsApp)</button>
+    <button class="btn" id="share-card" style="display:none">Share card&#8230;</button>
     <span class="sep"></span>
     <button class="btn" id="dl-json">Download editable record (JSON)</button>
+    <button class="btn" id="copy-record">Copy record (paste into a chat)</button>
     <span class="sep"></span>
     <button class="btn btn-sm" id="more-toggle"><span class="chev" id="more-chev">&#9656;</span>More</button>
     <span id="more-export" class="collapsed">
@@ -327,12 +343,7 @@ html,body{height:100vh;height:100dvh}
 
 
 
-<div id="rotate-gate">
-  <div class="rg-icon">&#128241;</div>
-  <h3>Turn your phone sideways</h3>
-  <p>The card builder needs a wider screen. Rotate your phone to landscape and it will open straight away.</p>
-  <button class="btn btn-sm" id="rg-skip">Continue anyway</button>
-</div>
+
 
 <div id="explainer"><div id="exp-box">
   <button class="btn btn-sm" id="exp-close">Close</button>
@@ -1273,6 +1284,21 @@ keyMapping = {
 <script>
 var UNIT = 3;
 var SYL_UNIT = 5;
+/* Glyph render frame, in multiples of SYL_UNIT. Sized from an exhaustive
+   sweep of every vowel x consonant x modifier combination the keyboard can
+   produce (983 combos) -- the old 17.6x26 frame clipped 320 of them,
+   including everyday consonants like f, s, n, ny, ng combined with common
+   modifiers, not just an edge case. A clipped mark doesn't just look bad --
+   a clipped nasal reads as a different, wrong glyph (a chevron instead of a
+   triangle-with-mark), which is a correctness bug, not a cosmetic one.
+   OFFSET shifts the glyph's drawing origin so marks that extend above/left
+   of the vowel (negative coordinates) still land inside the canvas.
+   This same ratio must stay consistent between renderSyllable (the strip
+   tiles and syllable editor preview) and cardOps/buildCardSvg (the actual
+   exported card) -- the same canvas gets scaled directly onto the card, so
+   if these ever disagree, glyphs distort or clip on export even though the
+   small on-screen tiles look fine. */
+var GLYPH_FRAME_W_U = 40, GLYPH_FRAME_H_U = 46, GLYPH_OFFSET_X_U = 10, GLYPH_OFFSET_Y_U = 9;
 var state = { tokens: [], latin: {} };
 
 function $(id){ return document.getElementById(id); }
@@ -1338,18 +1364,24 @@ function svgTarget(parts, ink){
     fillCircle: function(x,y,r){ parts.push('<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="'+ink+'" stroke="none"/>'); }
   };
 }
-function buildGlyph(token, factory){
+function buildGlyph(token, factory, unit){
+  /* Same origin offset as renderSyllable, and for the same reason: without
+     it, marks that extend above/left of the vowel (f, nasal+~, etc.) are
+     drawn at negative coordinates and clip when this same construction is
+     scaled onto the SVG card export. */
+  var u = unit || factory.unit || SYL_UNIT;
+  var origin = new Point(u*GLYPH_OFFSET_X_U, u*GLYPH_OFFSET_Y_U);
   var vowel, cons;
   if(typeof token === "string"){ vowel = token; cons = []; }
   else { vowel = token[0]; cons = token[1] || []; }
-  if(SYLLABIC_CONSONANTS.indexOf(vowel) >= 0) return factory.newSyllabicConsonant(vowel, new Point(0,0));
-  var g = factory.newVowel(vowel, new Point(0,0));
+  if(SYLLABIC_CONSONANTS.indexOf(vowel) >= 0) return factory.newSyllabicConsonant(vowel, origin);
+  var g = factory.newVowel(vowel, origin);
   for(var i=0;i<cons.length;i++){ g.addConsonant(cons[i]); }
   return g;
 }
 function glyphSvgParts(token, unit, ink){
   var parts = [];
-  buildGlyph(token, new GlyphFactory(unit)).renderOn(svgTarget(parts, ink));
+  buildGlyph(token, new GlyphFactory(unit), unit).renderOn(svgTarget(parts, ink));
   return parts.join("");
 }
 
@@ -1359,15 +1391,21 @@ function renderSyllable(token){
   if(sylCache[key]) return sylCache[key];
   if(sylCacheN > 400){ sylCache = {}; sylCacheN = 0; }
   var cv = document.createElement("canvas");
-  cv.width = Math.round(SYL_UNIT*17.6); cv.height = Math.round(SYL_UNIT*26);
-  var g = cv.getContext("2d");
-  g.lineWidth = SYL_UNIT/3.0; g.lineCap = "round";
+  cv.width = Math.round(SYL_UNIT*GLYPH_FRAME_W_U); cv.height = Math.round(SYL_UNIT*GLYPH_FRAME_H_U);
+  var g = cv.getContext("2d"); g.lineWidth = SYL_UNIT/3.0; g.lineCap = "round";
   var t = makeTarget(g);
   var f = new GlyphFactory(SYL_UNIT);
-  buildGlyph(token, f).renderOn(t);
-  sylCache[key] = cv;
-  return cv;
+  var origin = new Point(SYL_UNIT*GLYPH_OFFSET_X_U, SYL_UNIT*GLYPH_OFFSET_Y_U);
+  var vowel, cons;
+  if(typeof token === "string"){ vowel = token; cons = []; }
+  else { vowel = token[0]; cons = token[1] || []; }
+  var glyph;
+  if(SYLLABIC_CONSONANTS.indexOf(vowel) >= 0){ glyph = f.newSyllabicConsonant(vowel, origin); }
+  else { glyph = f.newVowel(vowel, origin); for(var i=0;i<cons.length;i++){ glyph.addConsonant(cons[i]); } }
+  glyph.renderOn(t);
+  sylCache[key] = cv; sylCacheN++; return cv;
 }
+
 function cloneCanvas(src){
   var c = document.createElement("canvas");
   c.width = src.width; c.height = src.height;
@@ -1803,7 +1841,7 @@ function updateCapNote(L){
 function cardOps(){
   var L = computeLayout(), C = cardColors(), ops = [], glyphNo = 0;
   var s=L.s, gw=BASE_GW*s, gh=BASE_GH*s, lat=BASE_LAT*s, gap=BASE_GAP*s, wgap=BASE_WGAP*s, rpad=BASE_RPAD*s;
-  var rowH = gh + lat + rpad, AR = 17.6/26;
+  var rowH = gh + lat + rpad, AR = GLYPH_FRAME_W_U/GLYPH_FRAME_H_U;
   var y = L.TOP + Math.max(0, (L.availH - L.rows.length*rowH)/2);
   L.rows.forEach(function(row){
     var tw = 0;
@@ -1812,8 +1850,18 @@ function cardOps(){
     row.forEach(function(u){
       if(u.br===" "){ x += wgap; return; }
       glyphNo++;
-      var dw = gh*AR;
-      ops.push({t:"glyph", tok:u.tok, gi:glyphNo, x:x+(gw-dw)/2, y:y, w:dw, h:gh});
+      /* Inscribe the glyph inside its slot on both axes, not just centre it.
+         The render frame's own proportions (set by how much room nasals and
+         other tall/wide marks need) don't necessarily match the layout
+         slot's proportions -- if drawn at full gh, a glyph can come out
+         wider than its slot and overlap the next one. Shrinking to fit
+         keeps every glyph fully inside its own slot; the height that comes
+         out of this also becomes the true height used for centring and,
+         via the op's own h, for the SVG scale factor -- so canvas and SVG
+         export stay in agreement automatically. */
+      var dw = gh*AR, dh = gh;
+      if(dw > gw){ dw = gw; dh = dw/AR; }
+      ops.push({t:"glyph", tok:u.tok, gi:glyphNo, x:x+(gw-dw)/2, y:y+(gh-dh), w:dw, h:dh});
       if(u.latin) ops.push({t:"txt", s:u.latin, x:x+gw/2, y:y+gh+lat, fs:Math.round(30*s),
                             fam:"'JetBrains Mono', monospace", weight:"500", col:C.ink});
       x += gw + gap;
@@ -1884,7 +1932,7 @@ function updateSelectionOverlay(){
 function esc(t){ return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 
 function buildCardSvg(){
-  var R = cardOps(), C = R.C, GU = 5, NAT_H = GU*26;
+  var R = cardOps(), C = R.C, GU = 5, NAT_H = GU*GLYPH_FRAME_H_U;
   var out = ['<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'">'];
   out.push('<rect width="'+W+'" height="'+H+'" fill="'+C.bg+'"/>');
   R.ops.forEach(function(o){
@@ -2085,6 +2133,12 @@ function loadFromText(rawIn){
   }
 
   try{
+    /* A loaded file replaces state.tokens/state.latin wholesale, but if the
+       syllable editor was left open from before, it keeps referencing the
+       OLD token index through a closure -- so typing into it after a reload
+       would silently write into the wrong position of the NEW phrase. Close
+       it so a fresh load always starts from a clean, correct state. */
+    closeSyllableEditor();
     mainCtx.reset(); mainCtx.cursor = new Point(0,0);
     mainCtx.deserialize(JSON.stringify(parsed));
     state.latin = restoreLatin || {};
@@ -2197,6 +2251,44 @@ on("dl-json", "click", function(){
   var b = new Blob([JSON.stringify(r,null,2)],{type:"application/json"});
   download(b, slugName() + ".json"); setStatus("record downloaded as " + slugName() + ".json","ok");
 });
+
+/* Same record as the JSON download, just written on one line with no spaces.
+   It is the exact same data -- JSON's indentation is a formatting choice for
+   humans reading it in an editor, not part of the format -- squeezed onto
+   one line purely so it is easy to select and paste as a WhatsApp message
+   instead of a file attachment. */
+on("copy-record", "click", function(){
+  var text = JSON.stringify(buildRecord());
+  navigator.clipboard.writeText(text)
+    .then(function(){ setStatus("record copied — paste it as a message","ok"); })
+    .catch(function(){ setStatus("copy blocked here — use Download instead","err"); });
+});
+
+/* Feature-detected: most desktop browsers do not support sharing files, so
+   the button only appears where navigator.canShare actually works. Nobody
+   sees a button that would just fail on click. */
+(function(){
+  var supported = false;
+  try{
+    supported = !!(navigator.canShare && navigator.canShare({files:[new File([""],"t.png",{type:"image/png"})]}));
+  }catch(e){ supported = false; }
+  if(supported){ var b = $("share-card"); if(b) b.style.display = ""; }
+})();
+on("share-card", "click", function(){
+  $("card-canvas").toBlob(function(blob){
+    if(!blob){ setStatus("could not prepare the card image","err"); return; }
+    var file = new File([blob], slugName() + ".png", {type:"image/png"});
+    if(!(navigator.canShare && navigator.canShare({files:[file]}))){
+      setStatus("sharing not available here — use Download instead","err"); return;
+    }
+    navigator.share({files:[file], title: slugName()})
+      .then(function(){ setStatus("shared","ok"); })
+      .catch(function(err){
+        if(err && err.name === "AbortError") return; // person cancelled -- not an error
+        setStatus("could not share — use Download instead","err");
+      });
+  });
+});
 on("copy-code", "click", function(){
   navigator.clipboard.writeText($("code").value)
     .then(function(){ setStatus("code string copied","ok"); })
@@ -2216,7 +2308,23 @@ document.addEventListener("keypress", function(e){
   mainCtx.addLetter(key); syncFromContext();
 });
 
-on("rg-skip", "click", function(){ document.body.classList.add("rg-dismissed"); });
+/* Keyboard drawer: collapsed by default only on a narrow screen (portrait
+   phone), so the strip and card get the whole first screen. Left expanded
+   by default everywhere else -- nobody on a laptop asked for this. Manual
+   toggle always available regardless of screen size. */
+function setKbCollapsed(collapsed){
+  var pane = $("left-pane"), btn = $("kb-toggle"), hint = $("kb-hint");
+  if(pane) pane.classList.toggle("kb-collapsed", collapsed);
+  if(btn) btn.textContent = collapsed ? "Show" : "Hide";
+  if(hint) hint.style.display = collapsed ? "none" : "";
+}
+on("kb-toggle", "click", function(){
+  var pane = $("left-pane");
+  setKbCollapsed(pane && !pane.classList.contains("kb-collapsed"));
+});
+if(window.matchMedia && window.matchMedia("(max-width:900px)").matches){
+  setKbCollapsed(true);
+}
 
 buildKeyboard();
 syncFromContext();
