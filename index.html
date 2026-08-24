@@ -284,6 +284,7 @@ html,body{height:100vh;height:100dvh}
           <span id="se-title">Edit syllable</span>
           <button class="btn btn-sm" id="se-prev">&larr; Prev</button>
           <button class="btn btn-sm" id="se-next">Next &rarr;</button>
+          <button class="btn btn-sm" id="se-space">Space after</button>
           <button class="btn btn-sm" id="se-del">Delete this syllable</button>
           <button class="btn btn-sm" id="se-close" style="margin-left:auto">Close</button>
         </div>
@@ -1463,7 +1464,12 @@ function renderCodeView(){
 
   var html = [], wordPos = 0, glyphNo = 0, tokenIdx = 0;
   units.forEach(function(u){
-    var t = u.text.replace(/\s+/g,"");
+    /* Trim only the ends. Stripping all whitespace destroyed the one character
+       these two checks are looking for, so a space token never matched and got
+       counted as a real syllable -- every space pushed the colour view's
+       numbers one past the strip's and the editor's. splitCodeUnits already
+       slices quote-to-quote, so the ends are clean anyway. */
+    var t = u.text.trim();
     if(t === '" "'){ html.push('<span class="cbrk"> \u00b7 </span>'); wordPos = 0; tokenIdx++; return; }
     if(t === '"\\n"'){ html.push('<span class="cbrk"> \u00b6 </span>'); wordPos = 0; tokenIdx++; return; }
     glyphNo++;
@@ -1575,6 +1581,40 @@ function deleteSyllable(glyphNo){
   setStatus("syllable removed", "ok");
 }
 
+/* Word breaks were only reachable by editing the raw string, which is the one
+   place this editor exists to keep people out of. One button, and it reads the
+   current state rather than adding a second one: if the gap is already there
+   it comes out again. Spaces are not counted as syllables anywhere, so the
+   selected glyph keeps its number across the edit. */
+function toggleSpaceAfter(glyphNo){
+  var ti = tokenIndexOfGlyph(glyphNo);
+  if(ti < 0) return;
+  var toks = state.tokens.slice();
+  var next = toks[ti+1];
+  var removing = (next === " ");
+  if(!removing && ti === toks.length - 1){
+    setStatus("a space after the last syllable would not show on the card", "err"); return;
+  }
+  var newLatin = {}, o = 0;
+  for(var i=0;i<toks.length;i++){
+    if(removing && i === ti+1) continue;
+    if(state.latin[i]) newLatin[o] = state.latin[i];
+    o++;
+    if(!removing && i === ti) o++;   /* the inserted space occupies a slot */
+  }
+  if(removing) toks.splice(ti+1,1); else toks.splice(ti+1,0," ");
+  try{
+    mainCtx.reset(); mainCtx.cursor = new Point(0,0);
+    mainCtx.deserialize(JSON.stringify(toks));
+  }catch(e){ setStatus("could not change that space: " + e.message, "err"); return; }
+  var raw = mainCtx.serialize();
+  $("code").value = raw;
+  state.tokens = JSON.parse(raw);
+  state.latin = newLatin;
+  drawStrip(); renderCodeView(); openSyllableEditor(glyphNo);
+  setStatus(removing ? "space removed" : "space added after syllable " + glyphNo, "ok");
+}
+
 var seBuilt = false;
 function buildEditorKeys(){
   if(seBuilt) return;
@@ -1628,6 +1668,15 @@ function openSyllableEditor(n){
 
   var ed = $("syl-editor"); if(ed) ed.classList.add("on");
   $("se-title").textContent = "Edit syllable " + n + " of " + glyphCount();
+
+  var sp = $("se-space");
+  if(sp){
+    var last = (ti === state.tokens.length - 1);
+    var hasSpace = (state.tokens[ti+1] === " ");
+    sp.textContent = hasSpace ? "Remove space after" : "Space after";
+    sp.disabled = last;
+    sp.style.opacity = last ? "0.4" : "";
+  }
 
   var host = $("se-canvas"); if(host) host.innerHTML = "";
   try{ if(host) host.appendChild(cloneCanvas(renderSyllable(state.tokens[ti]))); }catch(e){}
@@ -2210,6 +2259,7 @@ on("more-toggle", "click", function(){
 });
 on("se-close", "click", function(){ closeSyllableEditor(); });
 on("se-del", "click", function(){ if(selectedGlyph > 0) deleteSyllable(selectedGlyph); });
+on("se-space", "click", function(){ if(selectedGlyph > 0) toggleSpaceAfter(selectedGlyph); });
 on("se-prev", "click", function(){ if(selectedGlyph > 1) selectGlyph(selectedGlyph - 1); });
 on("se-next", "click", function(){ if(selectedGlyph < glyphCount()) selectGlyph(selectedGlyph + 1); });
 on("open-exp", "click", function(){ $("explainer").classList.add("on"); });
