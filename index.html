@@ -188,8 +188,29 @@ html,body{height:100vh;height:100dvh}
    again to review what you built. This also answers "the keyboard eats the
    screen once I'm on a second row of syllables" -- collapse it and the
    whole screen is the strip, however many rows it has. */
+/* ---------- portrait: a real layout, not a "please rotate" wall ----------
+   The earlier version forced landscape because the 320px keyboard column
+   left almost nothing for the syllable strip in portrait. The actual fix is
+   a collapsible keyboard: closed by default on a narrow screen, the strip
+   and card get the whole first screen; open it to pick a shape, close it
+   again to review what you built. This also answers "the keyboard eats the
+   screen once I'm on a second row of syllables" -- collapse it and the
+   whole screen is the strip, however many rows it has.
+
+   PORTRAIT AND LANDSCAPE ARE WRITTEN AS MUTUALLY EXCLUSIVE ON PURPOSE.
+   A real phone in landscape (e.g. 844x390) satisfies max-width:900 AND
+   max-height:560 at the same time -- a size-only pair of queries like that
+   applied both roles together: the portrait rule's drawer collapse and its
+   46vh cap on #left-pane, plus the landscape rule's two-column grid, landed
+   on the same element. The drawer's cap doesn't make sense next to a fixed
+   sidebar column -- it left the keyboard squashed into a sliver regardless
+   of how much width the sidebar had to work with. Gating each query on
+   orientation as well as size is what actually keeps them apart: a phone is
+   never portrait and landscape at once, so only one of these ever applies,
+   and each is now self-contained rather than assuming the other left
+   something in a compatible state. */
 #kb-toggle{display:none}
-@media (max-width:900px){
+@media (max-width:900px) and (orientation:portrait){
   #workspace{grid-template-columns:1fr;grid-template-rows:auto 1fr}
   #left-pane{border-right:none;border-bottom:1px solid var(--bdr);
     max-height:46vh;transition:max-height .18s ease}
@@ -202,14 +223,18 @@ html,body{height:100vh;height:100dvh}
 
 /* short viewports (phone landscape): tighten everything so the card,
    keyboard and syllable strip all stay reachable without scrolling past
-   the point of usefulness */
-@media (max-height:560px){
+   the point of usefulness. Self-contained: sets its own grid rather than
+   overriding pieces of the portrait one, and leaves #left-pane's height
+   alone so the sidebar fills the column instead of being capped by a rule
+   written for a drawer that doesn't exist in this layout. */
+@media (max-height:560px) and (orientation:landscape){
   #app{grid-template-rows:42px 1fr auto}
   #toolbar{padding:0 10px;gap:6px}
   #logo{font-size:11px;letter-spacing:.12em}
   .btn{font-size:11px;padding:5px 8px}
   .btn-sm{font-size:10px;padding:3px 7px}
-  #workspace{grid-template-columns:210px 1fr}
+  #workspace{grid-template-columns:210px 1fr;grid-template-rows:1fr}
+  #left-pane{max-height:none}
   .key{width:31px;height:42px}
   .kb{gap:3px;padding:7px 8px}
   .kb-lbl{padding:6px 10px 1px;font-size:9px}
@@ -2479,7 +2504,12 @@ document.addEventListener("keypress", function(e){
 /* Keyboard drawer: collapsed by default only on a narrow screen (portrait
    phone), so the strip and card get the whole first screen. Left expanded
    by default everywhere else -- nobody on a laptop asked for this. Manual
-   toggle always available regardless of screen size. */
+   toggle always available regardless of screen size.
+
+   This query matches the portrait-only media query above, not just the
+   width threshold -- a landscape phone is narrow too, but it gets the fixed
+   sidebar layout with no drawer, so forcing a collapse there hid the
+   keyboard behind a toggle button the landscape CSS never shows. */
 function setKbCollapsed(collapsed){
   var pane = $("left-pane"), btn = $("kb-toggle"), hint = $("kb-hint");
   if(pane) pane.classList.toggle("kb-collapsed", collapsed);
@@ -2490,8 +2520,19 @@ on("kb-toggle", "click", function(){
   var pane = $("left-pane");
   setKbCollapsed(pane && !pane.classList.contains("kb-collapsed"));
 });
-if(window.matchMedia && window.matchMedia("(max-width:900px)").matches){
-  setKbCollapsed(true);
+var portraitPhoneQuery = window.matchMedia && window.matchMedia("(max-width:900px) and (orientation:portrait)");
+if(portraitPhoneQuery && portraitPhoneQuery.matches){ setKbCollapsed(true); }
+/* Rotating out of portrait-phone mode (to landscape, or to a desktop-sized
+   window) makes the collapse irrelevant -- the CSS for those modes never
+   reads the collapsed class, but leaving the drawer "closed" is confusing
+   the moment it's rotated back, and on some browsers the toggle button
+   itself is mid-fade when the media query flips. Clearing it on the way out
+   keeps the state matching what's on screen rather than what it was left in
+   last time this device was portrait. */
+if(portraitPhoneQuery && portraitPhoneQuery.addEventListener){
+  portraitPhoneQuery.addEventListener("change", function(e){
+    if(!e.matches) setKbCollapsed(false);
+  });
 }
 
 buildKeyboard();
