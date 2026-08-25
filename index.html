@@ -211,10 +211,22 @@ html,body{height:100vh;height:100dvh}
    something in a compatible state. */
 #kb-toggle{display:none}
 @media (max-width:900px) and (orientation:portrait){
+  /* The toolbar scrolls sideways at this width, which hides Load/Open behind
+     a scrollbar most people never notice. Let it wrap instead and give the
+     row an auto height to wrap into. */
+  #app{grid-template-rows:auto 1fr auto}
+  #toolbar{flex-wrap:wrap;overflow-x:visible;padding:6px 10px;gap:6px 8px}
   #workspace{grid-template-columns:1fr;grid-template-rows:auto 1fr}
   #left-pane{border-right:none;border-bottom:1px solid var(--bdr);
     max-height:46vh;transition:max-height .18s ease}
-  #left-pane.kb-collapsed{max-height:0;border-bottom:none;overflow:hidden}
+  /* Collapse the KEY ROWS, not the pane. The toggle button lives in this
+     pane's own head, so putting max-height:0 on #left-pane hid the only
+     control that reopens it -- the keyboard vanished with nothing on screen
+     to say it existed or how to get it back. Hiding just .kb/.kb-lbl leaves
+     the head, its label and its Show button in place. */
+  #left-pane.kb-collapsed{max-height:none;overflow:visible}
+  #left-pane.kb-collapsed .kb,
+  #left-pane.kb-collapsed .kb-lbl{display:none}
   #kb-toggle{display:inline-flex}
   #card-canvas,#preview-stack{max-width:100%}
   #footer{gap:5px}
@@ -2514,7 +2526,10 @@ function setKbCollapsed(collapsed){
   var pane = $("left-pane"), btn = $("kb-toggle"), hint = $("kb-hint");
   if(pane) pane.classList.toggle("kb-collapsed", collapsed);
   if(btn) btn.textContent = collapsed ? "Show" : "Hide";
-  if(hint) hint.style.display = collapsed ? "none" : "";
+  /* The hint used to be hidden while collapsed, which left the pane head
+     saying only "Keyboard" next to a button -- nothing telling you the keys
+     were behind it. Say what the button does instead of hiding the text. */
+  if(hint) hint.textContent = collapsed ? "tap Show for the keys" : "click a shape to add it";
 }
 on("kb-toggle", "click", function(){
   var pane = $("left-pane");
@@ -2522,17 +2537,14 @@ on("kb-toggle", "click", function(){
 });
 var portraitPhoneQuery = window.matchMedia && window.matchMedia("(max-width:900px) and (orientation:portrait)");
 if(portraitPhoneQuery && portraitPhoneQuery.matches){ setKbCollapsed(true); }
-/* Rotating out of portrait-phone mode (to landscape, or to a desktop-sized
-   window) makes the collapse irrelevant -- the CSS for those modes never
-   reads the collapsed class, but leaving the drawer "closed" is confusing
-   the moment it's rotated back, and on some browsers the toggle button
-   itself is mid-fade when the media query flips. Clearing it on the way out
-   keeps the state matching what's on screen rather than what it was left in
-   last time this device was portrait. */
+/* Follow the query in BOTH directions. Setting it only on the way out left
+   the keyboard open on the way back in: rotate to landscape (or widen the
+   window), where the drawer doesn't exist and the class is ignored, then
+   return to portrait and the pane came back expanded at its full 46vh with
+   the syllable strip squeezed underneath. Collapsed is the right default
+   every time this layout is entered, not just on first load. */
 if(portraitPhoneQuery && portraitPhoneQuery.addEventListener){
-  portraitPhoneQuery.addEventListener("change", function(e){
-    if(!e.matches) setKbCollapsed(false);
-  });
+  portraitPhoneQuery.addEventListener("change", function(e){ setKbCollapsed(e.matches); });
 }
 
 buildKeyboard();
