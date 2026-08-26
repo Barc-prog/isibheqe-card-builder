@@ -321,7 +321,11 @@ html,body{height:100vh;height:100dvh}
           <span id="se-title">Edit syllable</span>
           <button class="btn btn-sm" id="se-prev">&larr; Prev</button>
           <button class="btn btn-sm" id="se-next">Next &rarr;</button>
-          <button class="btn btn-sm" id="se-space">Space after</button>
+          <span style="display:inline-flex;align-items:center;gap:4px">
+            <button class="btn btn-sm" id="se-space-minus" title="remove one space">&minus; space</button>
+            <span id="se-space-count" style="font-family:var(--mono);font-size:11px;color:var(--dim);min-width:12px;text-align:center"></span>
+            <button class="btn btn-sm" id="se-space-plus" title="add a space">+ space</button>
+          </span>
           <button class="btn btn-sm" id="se-del">Delete this syllable</button>
           <button class="btn btn-sm" id="se-close" style="margin-left:auto">Close</button>
         </div>
@@ -1732,23 +1736,18 @@ function deleteSyllable(glyphNo){
    current state rather than adding a second one: if the gap is already there
    it comes out again. Spaces are not counted as syllables anywhere, so the
    selected glyph keeps its number across the edit. */
-function toggleSpaceAfter(glyphNo){
-  var ti = tokenIndexOfGlyph(glyphNo);
-  if(ti < 0) return;
-  var toks = state.tokens.slice();
-  var next = toks[ti+1];
-  var removing = (next === " ");
-  if(!removing && ti === toks.length - 1){
-    setStatus("a space after the last syllable would not show on the card", "err"); return;
-  }
-  var newLatin = {}, o = 0;
-  for(var i=0;i<toks.length;i++){
-    if(removing && i === ti+1) continue;
-    if(state.latin[i]) newLatin[o] = state.latin[i];
-    o++;
-    if(!removing && i === ti) o++;   /* the inserted space occupies a slot */
-  }
-  if(removing) toks.splice(ti+1,1); else toks.splice(ti+1,0," ");
+/* A word break and a paragraph break are both single spaces, so getting a
+   wider gap meant clicking Space, seeing the button flip to "Remove space
+   after", and having no way to ask for a second one -- the next click took
+   the first one back out. spaceRunAfter counts how many spaces already sit
+   there; insert/remove act on that run instead of treating "has a space" as
+   a yes/no switch. */
+function spaceRunAfter(ti){
+  var n = 0, i = ti+1;
+  while(i < state.tokens.length && state.tokens[i] === " "){ n++; i++; }
+  return n;
+}
+function rebuildFromTokens(toks, newLatin, glyphNo){
   try{
     mainCtx.reset(); mainCtx.cursor = new Point(0,0);
     mainCtx.deserialize(JSON.stringify(toks));
@@ -1758,7 +1757,37 @@ function toggleSpaceAfter(glyphNo){
   state.tokens = JSON.parse(raw);
   state.latin = newLatin;
   drawStrip(); renderCodeView(); openSyllableEditor(glyphNo);
-  setStatus(removing ? "space removed" : "space added after syllable " + glyphNo, "ok");
+}
+function insertSpaceAfter(glyphNo){
+  var ti = tokenIndexOfGlyph(glyphNo);
+  if(ti < 0) return;
+  var toks = state.tokens.slice();
+  if(ti === toks.length - 1){
+    setStatus("a space after the last syllable would not show on the card", "err"); return;
+  }
+  var newLatin = {}, o = 0;
+  for(var i=0;i<toks.length;i++){
+    if(state.latin[i]) newLatin[o] = state.latin[i];
+    o++;
+    if(i === ti) o++;   /* the inserted space occupies a slot */
+  }
+  toks.splice(ti+1,0," ");
+  rebuildFromTokens(toks, newLatin, glyphNo);
+  setStatus("space added after syllable " + glyphNo, "ok");
+}
+function removeSpaceAfter(glyphNo){
+  var ti = tokenIndexOfGlyph(glyphNo);
+  if(ti < 0 || state.tokens[ti+1] !== " ") return;
+  var toks = state.tokens.slice();
+  var newLatin = {}, o = 0;
+  for(var i=0;i<toks.length;i++){
+    if(i === ti+1) continue;
+    if(state.latin[i]) newLatin[o] = state.latin[i];
+    o++;
+  }
+  toks.splice(ti+1,1);
+  rebuildFromTokens(toks, newLatin, glyphNo);
+  setStatus("space removed", "ok");
 }
 
 var seBuilt = false;
@@ -1815,13 +1844,14 @@ function openSyllableEditor(n){
   var ed = $("syl-editor"); if(ed) ed.classList.add("on");
   $("se-title").textContent = "Edit syllable " + n + " of " + glyphCount();
 
-  var sp = $("se-space");
-  if(sp){
+  var spPlus = $("se-space-plus"), spMinus = $("se-space-minus"), spCount = $("se-space-count");
+  if(spPlus){
     var last = (ti === state.tokens.length - 1);
-    var hasSpace = (state.tokens[ti+1] === " ");
-    sp.textContent = hasSpace ? "Remove space after" : "Space after";
-    sp.disabled = last;
-    sp.style.opacity = last ? "0.4" : "";
+    var run = spaceRunAfter(ti);
+    spPlus.disabled = last;
+    spPlus.style.opacity = last ? "0.4" : "";
+    if(spMinus){ spMinus.disabled = !run; spMinus.style.opacity = run ? "" : "0.35"; }
+    if(spCount) spCount.textContent = run || "";
   }
 
   var host = $("se-canvas"); if(host) host.innerHTML = "";
@@ -2414,7 +2444,8 @@ on("more-toggle", "click", function(){
 });
 on("se-close", "click", function(){ closeSyllableEditor(); });
 on("se-del", "click", function(){ if(selectedGlyph > 0) deleteSyllable(selectedGlyph); });
-on("se-space", "click", function(){ if(selectedGlyph > 0) toggleSpaceAfter(selectedGlyph); });
+on("se-space-plus", "click", function(){ if(selectedGlyph > 0) insertSpaceAfter(selectedGlyph); });
+on("se-space-minus", "click", function(){ if(selectedGlyph > 0) removeSpaceAfter(selectedGlyph); });
 on("se-prev", "click", function(){ if(selectedGlyph > 1) selectGlyph(selectedGlyph - 1); });
 on("se-next", "click", function(){ if(selectedGlyph < glyphCount()) selectGlyph(selectedGlyph + 1); });
 on("open-exp", "click", function(){ $("explainer").classList.add("on"); });
