@@ -321,6 +321,8 @@ html,body{height:100vh;height:100dvh}
           <span id="se-title">Edit syllable</span>
           <button class="btn btn-sm" id="se-prev">&larr; Prev</button>
           <button class="btn btn-sm" id="se-next">Next &rarr;</button>
+          <button class="btn btn-sm" id="se-ins-before">+ syllable before</button>
+          <button class="btn btn-sm" id="se-ins-after">+ syllable after</button>
           <span style="display:inline-flex;align-items:center;gap:4px">
             <button class="btn btn-sm" id="se-space-minus" title="remove one space">&minus; space</button>
             <span id="se-space-count" style="font-family:var(--mono);font-size:11px;color:var(--dim);min-width:12px;text-align:center"></span>
@@ -1686,6 +1688,40 @@ function partsToToken(p){ return p.c.length ? [p.v, p.c] : p.v; }
 
 /* Rewrite one syllable in place and re-render everything from the engine,
    keeping the Latin boxes (positions are unchanged by an in-place edit). */
+/* Inserting a syllable is the same shape of edit as deleting one -- slice
+   state.tokens at a position and re-run the whole array through the engine
+   so nothing downstream needs to know insertion happened. "Before" and
+   "after" are the same splice at ti or ti+1; sharing one function keeps
+   that obvious instead of maintaining two near-identical copies. */
+function insertSyllableAt(glyphNo, before){
+  var ti = tokenIndexOfGlyph(glyphNo);
+  if(ti < 0) return;
+  var at = before ? ti : ti+1;
+  var toks = state.tokens.slice();
+  /* Direct index formula rather than an incremental o++ walk: anything
+     before the insertion point keeps its index, anything at or past it
+     shifts up by one. The incremental version copied from deleteSyllable's
+     shape doesn't split cleanly into "before" and "after" cases without
+     this, since which index the gap opens at differs between the two. */
+  var newLatin = {};
+  for(var i=0;i<toks.length;i++){
+    var o = (i < at) ? i : i+1;
+    if(state.latin[i]) newLatin[o] = state.latin[i];
+  }
+  toks.splice(at, 0, "a");
+  try{
+    mainCtx.reset(); mainCtx.cursor = new Point(0,0);
+    mainCtx.deserialize(JSON.stringify(toks));
+  }catch(e){ setStatus("could not insert: " + e.message, "err"); return; }
+  var raw = mainCtx.serialize();
+  $("code").value = raw;
+  state.tokens = JSON.parse(raw);
+  state.latin = newLatin;
+  drawStrip(); renderCodeView();
+  openSyllableEditor(before ? glyphNo : glyphNo+1);
+  setStatus("syllable inserted \u2014 pick its vowel and marks", "ok");
+}
+
 function writeSyllable(glyphNo, parts){
   var ti = tokenIndexOfGlyph(glyphNo);
   if(ti < 0) return;
@@ -2443,6 +2479,8 @@ on("more-toggle", "click", function(){
   var ch = $("more-chev"); if(ch) ch.classList.toggle("open", !hidden);
 });
 on("se-close", "click", function(){ closeSyllableEditor(); });
+on("se-ins-before", "click", function(){ if(selectedGlyph > 0) insertSyllableAt(selectedGlyph, true); });
+on("se-ins-after", "click", function(){ if(selectedGlyph > 0) insertSyllableAt(selectedGlyph, false); });
 on("se-del", "click", function(){ if(selectedGlyph > 0) deleteSyllable(selectedGlyph); });
 on("se-space-plus", "click", function(){ if(selectedGlyph > 0) insertSpaceAfter(selectedGlyph); });
 on("se-space-minus", "click", function(){ if(selectedGlyph > 0) removeSpaceAfter(selectedGlyph); });
