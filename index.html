@@ -254,6 +254,11 @@ html,body{height:100vh;height:100dvh}
   .syl canvas{height:52px}
   .syl input{width:52px;font-size:11px}
   #strip-area{padding:10px 10px;min-height:80px}
+  /* Landscape phone is already fighting for every pixel of height (see the
+     mutual-exclusivity fix above) -- the persistent Latin note is a nice-to
+     have there, not worth the two lines it costs. The empty-state version
+     of the same message still shows before any syllable exists. */
+  #latin-note{display:none}
   .meta{padding:8px 10px;gap:7px;grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
   #footer{padding:6px 10px;gap:5px}
   #card-canvas,#preview-stack{max-width:230px}
@@ -298,6 +303,9 @@ html,body{height:100vh;height:100dvh}
     <div id="right-pane">
       <div class="pane-head"><span>Syllabemes &amp; Latin</span><span><span class="hint" id="strip-hint" style="color:var(--dimmer);margin-right:12px">click a syllable to change it</span><span id="syl-count"></span><span id="cap-note" style="margin-left:10px"></span></span></div>
       <div id="strip-area">
+        <div id="latin-note" style="color:var(--acc);font-size:11px;padding:0 2px 12px;line-height:1.5">
+          Type the Latin spelling under each syllable yourself.
+        </div>
         <div id="strip"></div>
       </div>
 
@@ -348,10 +356,21 @@ html,body{height:100vh;height:100dvh}
 
       <div class="pane-head" style="border-top:1px solid var(--bdr)"><span>Entry details</span><span><span class="hint" id="meta-hint">fill these in — they print on the card</span><button class="btn btn-sm" id="meta-toggle" style="margin-left:10px">Hide</button></span></div>
       <div class="meta">
-        <div class="fld"><label>Language</label><input type="text" id="f-lang" placeholder="which language? e.g. Tshivenda"></div>
+        <div class="fld"><label>Language</label><input type="text" id="f-lang" list="lang-list" placeholder="pick one, or type your own"></div>
+        <datalist id="lang-list">
+          <option value="isiNdebele">
+          <option value="isiXhosa">
+          <option value="isiZulu">
+          <option value="Sepedi">
+          <option value="Sesotho">
+          <option value="Setswana">
+          <option value="siSwati">
+          <option value="Tshivenda">
+          <option value="Xitsonga">
+        </datalist>
         <div class="fld"><label>Full Latin (fills itself)</label><input type="text" id="f-latin" placeholder="builds itself from the boxes above"></div>
         <div class="fld"><label>Gloss (English)</label><input type="text" id="f-gloss" placeholder="what does it mean? e.g. Good morning"></div>
-        <div class="fld"><label>Theme</label><input type="text" id="f-round" value="seed" placeholder="seed, or a theme name"></div>
+        <div class="fld"><label>Theme</label><input type="text" id="f-round" placeholder="e.g. seed, or a round name"></div>
         <div class="fld"><label>Scribe</label><input type="text" id="f-scribe" placeholder="Who made this card?"></div>
         <div class="fld"><label>Entry id</label><input type="text" id="f-id" placeholder="short file name, e.g. seed-01"></div>
       </div>
@@ -1952,7 +1971,7 @@ function drawStrip(){
   var toks = state.tokens;
   var real = 0;
   if(!toks.length){
-    strip.innerHTML = '<div class="empty-hint">Click keys on the left to build a phrase.<br>Each syllabeme appears here with a box for its Latin syllable.<br>Vowel first, then consonants and modifiers.</div>';
+    strip.innerHTML = '<div class="empty-hint">Click keys on the left to build a phrase.<br>Each syllabeme appears here with a box for its Latin syllable \u2014 type that in yourself, it does not fill in automatically.<br>Vowel first, then consonants and modifiers.</div>';
     $("syl-count").textContent = "";
     updateLatin(); drawCard(); return;
   }
@@ -2147,7 +2166,7 @@ function cardOps(){
     });
   }
   ops.push({t:"rule", y:H-116});
-  var lang = $("f-lang").value || "\u2014", rnd = $("f-round").value || "seed", scr = $("f-scribe").value;
+  var lang = $("f-lang").value || "\u2014", rnd = $("f-round").value || "\u2014", scr = $("f-scribe").value;
   ops.push({t:"txt", s:lang+" \u00b7 "+rnd, x:80, y:H-64, fs:26, fam:"Syne, sans-serif", weight:"400", col:C.sub, align:"left"});
   if(scr) ops.push({t:"txt", s:"scribe: "+scr, x:W-80, y:H-64, fs:26, fam:"Syne, sans-serif", weight:"400", col:C.sub, align:"right"});
   return {ops:ops, C:C, L:L};
@@ -2229,7 +2248,7 @@ function buildRecord(){
   });
   return {
     entry_id: $("f-id").value || null,
-    round: $("f-round").value || "seed",
+    round: $("f-round").value || null,
     language: $("f-lang").value || null,
     latin: $("f-latin").value || null,
     gloss: $("f-gloss").value || null,
@@ -2256,7 +2275,15 @@ on("undo", "click", function(){
 });
 on("space", "click", function(){ mainCtx.addLetter("space"); syncFromContext(); });
 on("clear", "click", function(){
-  mainCtx.reset(); state.latin = {}; syncFromContext(); setStatus("cleared","");
+  mainCtx.reset(); state.latin = {};
+  /* Clear only ever reset the glyphs. The five Entry Details fields were
+     left untouched, so anything typed there for one card -- including the
+     Entry ID, which people naturally fill from the Latin/filename hint --
+     sat there through the next card too. That's the reported "Latin bleeds
+     into Entry ID": it isn't really Latin leaking in, it's a name someone
+     chose based on the last card's Latin that Clear never removed. */
+  ["f-lang","f-gloss","f-round","f-scribe","f-id"].forEach(function(id){ $(id).value = ""; });
+  syncFromContext(); setStatus("cleared","");
 });
 /* Structural pre-check for a raw code string, run before JSON.parse so we can
    point at WHERE editing went wrong — usually a bracket dropped mid-phrase.
