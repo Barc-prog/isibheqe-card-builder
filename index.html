@@ -92,6 +92,7 @@ select:focus,input[type=text]:focus{border-color:var(--acc)}
 #preview-wrap{padding:16px;border-top:1px solid var(--bdr);display:flex;justify-content:center;background:#0a090d}
 #preview-stack{position:relative;max-width:340px;width:100%}
 #card-canvas{display:block;width:100%;height:auto;border-radius:10px;border:1px solid var(--bdr)}
+#card-canvas.see-through{background-color:#fff;background-image:linear-gradient(45deg,#ddd 25%,transparent 25%,transparent 75%,#ddd 75%),linear-gradient(45deg,#ddd 25%,transparent 25%,transparent 75%,#ddd 75%);background-size:24px 24px;background-position:0 0,12px 12px}
 #card-overlay{position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none}
 
 #footer{flex-shrink:0;border-top:1px solid var(--bdr);padding:10px 16px;
@@ -385,6 +386,14 @@ html,body{height:100vh;height:100dvh}
   </div>
 
   <div id="footer">
+    <span class="tlbl">show</span>
+    <select id="card-mode" title="Which layers the card and its downloads include">
+      <option value="1">1 &middot; amaBheqe only (no background)</option>
+      <option value="2">2 &middot; amaBheqe + Latin syllables</option>
+      <option value="3">3 &middot; + full Latin</option>
+      <option value="4">4 &middot; + gloss</option>
+      <option value="5" selected>5 &middot; full card (all details)</option>
+    </select>
     <button class="btn btn-acc" id="dl-card">Download card as an image (PNG)</button>
     <button class="btn" id="copy-card">Copy card to clipboard (paste into WhatsApp)</button>
     <button class="btn" id="share-card" style="display:none">Share card&#8230;</button>
@@ -395,6 +404,7 @@ html,body{height:100vh;height:100dvh}
     <button class="btn btn-sm" id="more-toggle"><span class="chev" id="more-chev">&#9656;</span>More</button>
     <span id="more-export" class="collapsed">
       <button class="btn" id="dl-svg">Download card as an SVG image</button>
+      <button class="btn" id="dl-syl">Download selected syllable (SVG)</button>
       <button class="btn" id="copy-code">Copy code string (for isibheqe.org.za/demo)</button>
       <span class="tlbl">card bg</span>
       <select id="card-bg"><option value="cream">cream</option><option value="white">white</option></select>
@@ -2085,35 +2095,110 @@ function fitTextBlock(latin, gloss){
   return best;
 }
 
+/* Layer modes. 5 is the card as it has always been; each lower mode drops a
+   layer from the bottom up: footer, then gloss, then the full Latin line,
+   then the Latin under each syllable. Purely presentation -- the mode is not
+   part of the record, since the image is always derived from the record. */
+function cardMode(){
+  var e = $("card-mode"), m = e ? parseInt(e.value, 10) : 5;
+  return (m >= 1 && m <= 5) ? m : 5;
+}
+function layers(m){
+  return {sylLatin: m >= 2, fullLatin: m >= 3, gloss: m >= 4, footer: m >= 5};
+}
+
 function computeLayout(){
   /* One scale factor takes the crop out of glyph space and onto the card, so
      the slot is the ink box and nothing else. */
   var CROP = phraseCrop(), K = BASE_GH/bodyHeight();
   var GH = CROP.h*K, GW = CROP.w*K;
+  var mode = cardMode(), Ly = layers(mode);
   var units = [];
   state.tokens.forEach(function(tok,i){
     if(tok===" "||tok==="\n"){ units.push({br:tok}); return; }
     units.push({tok:tok, latin: state.latin[i]||""});
   });
-  var T = fitTextBlock(($("f-latin").value||"").trim(), ($("f-gloss").value||"").trim());
-  var TOP = 64, PAD = 40;
-  var availH = H - TOP - FOOT - T.textH - PAD;
-  var maxW = W - 150;
-  var s = 1.0, rows = [], overflow = false;
-  for(s = 1.0; s >= 0.34; s -= 0.04){
-    var gh=GH*s, gw=GW*s, lat=BASE_LAT*s, gap=BASE_GAP*s, wgap=BASE_WGAP*s, rpad=BASE_RPAD*s;
-    rows = [[]]; var rw = 0;
+  var T = fitTextBlock(Ly.fullLatin ? ($("f-latin").value||"").trim() : "",
+                       Ly.gloss ? ($("f-gloss").value||"").trim() : "");
+  /* With no footer, the bottom margin matches the top one, so the block sits
+     centred instead of floating high over an empty footer band. */
+  var TOP = 64, BOT = Ly.footer ? FOOT : TOP, PAD = (mode === 5 || T.textH) ? 40 : 0;
+  var availH = H - TOP - BOT - T.textH - PAD;
+  var maxW = W - 150, latH = Ly.sylLatin ? BASE_LAT : 0;
+
+  function wrap(s){
+    var gw=GW*s, gap=BASE_GAP*s, wgap=BASE_WGAP*s, rows = [[]], rw = 0, widest = 0;
     units.forEach(function(u){
       if(u.br === "\n"){ rows.push([]); rw = 0; return; }
       if(u.br === " "){ if(rows[rows.length-1].length){ rows[rows.length-1].push(u); rw += wgap; } return; }
       if(rw + gw > maxW && rows[rows.length-1].length){ rows.push([]); rw = 0; }
       rows[rows.length-1].push(u); rw += gw + gap;
+      if(rw - gap > widest) widest = rw - gap;
     });
-    rows = rows.filter(function(r){ return r.length; });
-    if(rows.length * (gh + lat + rpad) <= availH) break;
-    if(s <= 0.38) overflow = true;
+    return {rows: rows.filter(function(r){ return r.length; }), widest: widest};
   }
-  return {units:units, rows:rows, s:s, overflow:overflow, T:T, TOP:TOP, availH:availH, crop:CROP, GH:GH, GW:GW};
+
+  /* Modes 1-4 wrap whole words. Grow-to-fill wraps far more often than the
+     full-size card ever did, and splitting a word mid-way (sa wu bo / na)
+     reads as two words. A word only breaks if it is wider than a row on its
+     own. Widths are counted the way cardOps lays them out: gw+gap per glyph,
+     wgap per space, minus the one trailing gap. */
+  function wrapWords(s){
+    var gw=GW*s, gap=BASE_GAP*s, wgap=BASE_WGAP*s;
+    var rows = [[]], rw = 0, widest = 0, sp = [], word = [], broke = false;
+    function row(){ return rows[rows.length-1]; }
+    function note(){ if(rw - gap > widest) widest = rw - gap; }
+    function flush(){
+      if(!word.length) return;
+      var ww = word.length*(gw+gap), lead = row().length ? sp.length*wgap : 0;
+      if(row().length && rw + lead + ww - gap > maxW){ rows.push([]); rw = 0; lead = 0; }
+      if(lead){ sp.forEach(function(u){ row().push(u); }); rw += lead; }
+      word.forEach(function(u){
+        if(row().length && rw + gw > maxW){ note(); rows.push([]); rw = 0; broke = true; }
+        row().push(u); rw += gw + gap;
+      });
+      note(); sp = []; word = [];
+    }
+    units.forEach(function(u){
+      if(u.br === "\n"){ flush(); rows.push([]); rw = 0; sp = []; return; }
+      if(u.br === " "){ flush(); sp.push(u); return; }
+      word.push(u);
+    });
+    flush();
+    return {rows: rows.filter(function(r){ return r.length; }), widest: widest, broke: broke};
+  }
+
+  var s = 1.0, rows = [], overflow = false;
+  if(mode === 5){
+    /* Unchanged from before the modes existed: never larger than full size. */
+    for(s = 1.0; s >= 0.34; s -= 0.04){
+      rows = wrap(s).rows;
+      if(rows.length * (GH*s + BASE_LAT*s + BASE_RPAD*s) <= availH) break;
+      if(s <= 0.38) overflow = true;
+    }
+  } else {
+    /* Grow to fill. Bigger glyphs can push a word onto a new row, so the size
+       cannot be solved for once; start at the largest size one glyph could
+       possibly have and step down 2% at a time until every row fits across
+       and the stack fits down. With nothing below, the last row's padding is
+       not counted -- it is air under the block, and counting it would sit the
+       block high. With a text block below, it stays, as the space between. */
+    var rowU = GH + latH + BASE_RPAD;
+    /* Two passes: first the largest size at which no word has to break,
+       because an intact word slightly smaller reads better than a split one
+       slightly bigger. Only if no size keeps every word whole (one very long
+       word) does the second pass allow a break. */
+    var tail = T.textH ? 0 : BASE_RPAD, s0 = Math.min(maxW/GW, (availH + BASE_RPAD)/rowU), found = false;
+    for(var pass = 0; pass < 2 && !found; pass++){
+      for(s = s0; s >= 0.34; s *= 0.98){
+        var Wr = wrapWords(s); rows = Wr.rows;
+        if((pass || !Wr.broke) && Wr.widest <= maxW && rows.length*rowU*s - tail*s <= availH){ found = true; break; }
+      }
+    }
+    if(!found){ s = 0.34; rows = wrapWords(s).rows; overflow = true; }
+  }
+  return {units:units, rows:rows, s:s, overflow:overflow, T:T, TOP:TOP, BOT:BOT, availH:availH,
+          crop:CROP, GH:GH, GW:GW, mode:mode, layers:Ly};
 }
 
 /* "Fits" and "readable" are different thresholds. A 160-glyph phrase still
@@ -2127,17 +2212,20 @@ function updateCapNote(L){
   if(L.overflow){ n.textContent = "TOO LONG FOR ONE CARD"; n.style.color = "var(--red)"; }
   else if(L.s < 0.6){ n.textContent = "very small at " + Math.round(L.s*100) + "% \u2014 hard to read, consider splitting"; n.style.color = "var(--red)"; }
   else if(L.s < 0.99){ n.textContent = "scaled to " + Math.round(L.s*100) + "% to fit"; n.style.color = "var(--acc)"; }
+  else if(L.s > 1.01){ n.textContent = "scaled up to " + Math.round(L.s*100) + "% to fill"; n.style.color = "var(--grn)"; }
   else { n.textContent = "fits at full size"; n.style.color = "var(--grn)"; }
 }
 
 function cardOps(){
-  var L = computeLayout(), C = cardColors(), ops = [], glyphNo = 0;
-  var s=L.s, gh=L.GH*s, gw=L.GW*s, lat=BASE_LAT*s, gap=BASE_GAP*s, wgap=BASE_WGAP*s, rpad=BASE_RPAD*s;
+  var L = computeLayout(), C = cardColors(), ops = [], glyphNo = 0, Ly = L.layers;
+  var s=L.s, gh=L.GH*s, gw=L.GW*s, lat=(Ly.sylLatin ? BASE_LAT : 0)*s, gap=BASE_GAP*s, wgap=BASE_WGAP*s, rpad=BASE_RPAD*s;
   var rowH = gh + lat + rpad;
-  var y = L.TOP + Math.max(0, (L.availH - L.rows.length*rowH)/2);
+  var blockH = L.rows.length*rowH - ((L.mode === 5 || L.T.textH) ? 0 : rpad);
+  var y = L.TOP + Math.max(0, (L.availH - blockH)/2);
   L.rows.forEach(function(row){
     var tw = 0;
     row.forEach(function(u){ tw += (u.br===" ") ? wgap : gw+gap; });
+    if(L.mode !== 5) tw -= gap;
     var x = (W - tw)/2;
     row.forEach(function(u){
       if(u.br===" "){ x += wgap; return; }
@@ -2147,13 +2235,13 @@ function cardOps(){
          either side. o.h stays the SVG scale factor, and o.w/o.h is the crop
          aspect, which is how canvas and SVG stay in agreement. */
       ops.push({t:"glyph", tok:u.tok, gi:glyphNo, x:x, y:y, w:gw, h:gh});
-      if(u.latin) ops.push({t:"txt", s:u.latin, x:x+gw/2, y:y+gh+lat, fs:Math.round(30*s),
+      if(Ly.sylLatin && u.latin) ops.push({t:"txt", s:u.latin, x:x+gw/2, y:y+gh+lat, fs:Math.round(30*s),
                             fam:"'JetBrains Mono', monospace", weight:"500", col:C.ink});
       x += gw + gap;
     });
     y += rowH;
   });
-  var T = L.T, by = H - FOOT - T.textH + T.latinFS;
+  var T = L.T, by = H - L.BOT - T.textH + T.latinFS;
   T.latinLines.forEach(function(line){
     ops.push({t:"txt", s:line, x:W/2, y:by, fs:T.latinFS, fam:"Syne, sans-serif", weight:"600", col:C.ink});
     by += Math.round(T.latinFS*1.34);
@@ -2165,11 +2253,41 @@ function cardOps(){
       by += Math.round(T.glossFS*1.4);
     });
   }
-  ops.push({t:"rule", y:H-116});
-  var lang = $("f-lang").value || "\u2014", rnd = $("f-round").value || "\u2014", scr = $("f-scribe").value;
-  ops.push({t:"txt", s:lang+" \u00b7 "+rnd, x:80, y:H-64, fs:26, fam:"Syne, sans-serif", weight:"400", col:C.sub, align:"left"});
-  if(scr) ops.push({t:"txt", s:"scribe: "+scr, x:W-80, y:H-64, fs:26, fam:"Syne, sans-serif", weight:"400", col:C.sub, align:"right"});
-  return {ops:ops, C:C, L:L};
+  if(Ly.footer){
+    ops.push({t:"rule", y:H-116});
+    var lang = $("f-lang").value || "—", rnd = $("f-round").value || "—", scr = $("f-scribe").value;
+    ops.push({t:"txt", s:lang+" · "+rnd, x:80, y:H-64, fs:26, fam:"Syne, sans-serif", weight:"400", col:C.sub, align:"left"});
+    if(scr) ops.push({t:"txt", s:"scribe: "+scr, x:W-80, y:H-64, fs:26, fam:"Syne, sans-serif", weight:"400", col:C.sub, align:"right"});
+  }
+  /* The frame is the part of card space that becomes the image. For modes
+     2-5 it is the whole card. For mode 1 it is the glyphs' own box plus a
+     margin of half a glyph gap, so the file is the writing and nothing else
+     -- laid out exactly as it would be on the card, then cut out. */
+  var F = {x:0, y:0, w:W, h:H, transparent:false};
+  if(L.mode === 1){
+    var gl = ops.filter(function(o){ return o.t === "glyph"; });
+    if(gl.length){
+      var x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity, m = gap/2;
+      gl.forEach(function(o){ x0=Math.min(x0,o.x); y0=Math.min(y0,o.y); x1=Math.max(x1,o.x+o.w); y1=Math.max(y1,o.y+o.h); });
+      x0 = Math.floor(x0-m); y0 = Math.floor(y0-m);
+      F = {x:x0, y:y0, w:Math.ceil(x1+m)-x0, h:Math.ceil(y1+m)-y0, transparent:true};
+    } else { F = {x:0, y:0, w:W, h:H, transparent:true}; }
+  }
+  return {ops:ops, C:C, L:L, F:F};
+}
+
+/* Glyphs are drawn as vectors straight onto the card rather than copied from
+   the 5-unit syllable tiles. At full size and below the two look the same,
+   but grow-to-fill can take a glyph to several times full size, and a tile
+   stretched that far goes soft. Same engine calls, same transform and stroke
+   width as the SVG export, so canvas and SVG still agree by construction. */
+function drawGlyphVector(g, tok, o, CROP, ink){
+  var k = o.h/CROP.h;
+  g.save();
+  g.translate(o.x - CROP.x*k, o.y - CROP.y*k); g.scale(k, k);
+  g.lineWidth = SYL_UNIT/3.0; g.lineCap = "round"; g.strokeStyle = ink; g.fillStyle = ink;
+  buildGlyph(tok, new GlyphFactory(SYL_UNIT), SYL_UNIT).renderOn(makeTarget(g));
+  g.restore();
 }
 
 var cardTimer = null;
@@ -2177,13 +2295,23 @@ function drawCard(){ clearTimeout(cardTimer); cardTimer = setTimeout(drawCardNow
 
 var lastCardOps = null;
 function drawCardNow(){
-  var R = cardOps(), g = $("card-canvas").getContext("2d"), C = R.C;
+  var R = cardOps(), cv = $("card-canvas"), C = R.C, F = R.F;
+  /* The canvas is the image the PNG, Copy and Share buttons read, so it
+     takes the frame's size: the whole card, or the tight mode-1 cut-out. */
+  if(cv.width !== F.w || cv.height !== F.h){ cv.width = F.w; cv.height = F.h; }
+  var ov = $("card-overlay");
+  if(ov && (ov.width !== F.w || ov.height !== F.h)){ ov.width = F.w; ov.height = F.h; }
+  if(cv.classList) cv.classList.toggle("see-through", F.transparent);
+  var g = cv.getContext("2d");
   lastCardOps = R;
   updateCapNote(R.L);
-  g.clearRect(0,0,W,H); g.fillStyle = C.bg; g.fillRect(0,0,W,H);
+  g.setTransform(1,0,0,1,0,0);
+  g.clearRect(0,0,F.w,F.h);
+  if(!F.transparent){ g.fillStyle = C.bg; g.fillRect(0,0,F.w,F.h); }
+  g.translate(-F.x, -F.y);
   var CROP = R.L.crop;
   R.ops.forEach(function(o){
-    if(o.t==="glyph"){ try{ g.drawImage(renderSyllable(o.tok), CROP.x, CROP.y, CROP.w, CROP.h, o.x, o.y, o.w, o.h); }catch(e){} }
+    if(o.t==="glyph"){ try{ drawGlyphVector(g, o.tok, o, CROP, C.ink); }catch(e){} }
     else if(o.t==="txt"){
       g.textAlign = o.align || "center"; g.textBaseline = "alphabetic"; g.fillStyle = o.col;
       g.font = (o.italic?"italic ":"") + o.weight + " " + o.fs + "px " + o.fam;
@@ -2193,6 +2321,7 @@ function drawCardNow(){
       g.beginPath(); g.moveTo(80,o.y); g.lineTo(W-80,o.y); g.stroke();
     }
   });
+  g.setTransform(1,0,0,1,0,0);
   g.textAlign = "center";
   updateSelectionOverlay();
 }
@@ -2212,15 +2341,18 @@ function updateSelectionOverlay(){
   if(!op) return;
   var pad = 10;
   g.strokeStyle = "#f5a623"; g.lineWidth = 6; g.lineJoin = "round";
-  g.strokeRect(op.x-pad, op.y-pad, op.w+pad*2, op.h+pad*2);
+  var F = lastCardOps.F || {x:0, y:0};
+  g.strokeRect(op.x-F.x-pad, op.y-F.y-pad, op.w+pad*2, op.h+pad*2);
 }
 
 function esc(t){ return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 
 function buildCardSvg(){
-  var R = cardOps(), C = R.C, GU = SYL_UNIT, CROP = R.L.crop;
-  var out = ['<svg xmlns="http://www.w3.org/2000/svg" width="'+W+'" height="'+H+'" viewBox="0 0 '+W+' '+H+'">'];
-  out.push('<rect width="'+W+'" height="'+H+'" fill="'+C.bg+'"/>');
+  var R = cardOps(), C = R.C, GU = SYL_UNIT, CROP = R.L.crop, F = R.F;
+  /* The viewBox is the frame, so mode 1's cut-out needs no extra translate:
+     the same card-space coordinates simply start at the frame's corner. */
+  var out = ['<svg xmlns="http://www.w3.org/2000/svg" width="'+F.w+'" height="'+F.h+'" viewBox="'+F.x+' '+F.y+' '+F.w+' '+F.h+'">'];
+  if(!F.transparent) out.push('<rect x="'+F.x+'" y="'+F.y+'" width="'+F.w+'" height="'+F.h+'" fill="'+C.bg+'"/>');
   R.ops.forEach(function(o){
     if(o.t==="glyph"){
       /* Scale by the crop's height, not the frame's, and pull the drawing
@@ -2237,6 +2369,29 @@ function buildCardSvg(){
       out.push('<line x1="80" y1="'+o.y+'" x2="'+(W-80)+'" y2="'+o.y+'" stroke="'+C.rule+'" stroke-width="2"/>');
     }
   });
+  out.push('</svg>'); return out.join("");
+}
+
+/* One syllable on its own, for chart cells. Cropped to that syllable's own
+   ink, but always at one shared scale -- the card's full size, where a vowel
+   body is BASE_GH px -- so a plain a and a nasalised a exported separately
+   come out with the same vowel size and only the marks add height. Always
+   transparent. withLatin puts that syllable's own Latin under it (mode 2). */
+function buildSyllableSvg(ti, withLatin){
+  var tok = state.tokens[ti], b = inkBounds(tok);
+  if(!b) throw new Error("nothing to draw for that syllable");
+  var K = BASE_GH/bodyHeight(), pad = SYL_UNIT*0.9, ink = cardColors().ink;
+  var gx = b.x0 - pad, gy = b.y0 - pad, gw = (b.x1 - b.x0 + 2*pad)*K, gh = (b.y1 - b.y0 + 2*pad)*K;
+  var lat = withLatin ? (state.latin[ti] || "").trim() : "", w = gw, h = gh, tw = 0;
+  if(lat){
+    var mc = measureCtx(); mc.font = "500 30px 'JetBrains Mono', monospace";
+    tw = mc.measureText(lat).width + 8; w = Math.max(gw, tw); h = gh + BASE_LAT + 12;
+  }
+  w = Math.ceil(w); h = Math.ceil(h);
+  var out = ['<svg xmlns="http://www.w3.org/2000/svg" width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'">'];
+  out.push('<g transform="translate('+((w-gw)/2 - gx*K)+','+(-gy*K)+') scale('+K+')" stroke="'+ink+'" fill="none" stroke-width="'+(SYL_UNIT/3.0)+'" stroke-linecap="round">'
+    + glyphSvgParts(tok, SYL_UNIT, ink) + '</g>');
+  if(lat) out.push('<text x="'+(w/2)+'" y="'+(gh+BASE_LAT)+'" text-anchor="middle" font-family="JetBrains Mono, monospace" font-weight="500" font-size="30" fill="'+ink+'">'+esc(lat)+'</text>');
   out.push('</svg>'); return out.join("");
 }
 
@@ -2522,9 +2677,25 @@ document.addEventListener("keydown", function(e){ if(e.key==="Escape") $("explai
 });
 on("card-bg", "change", drawCard);
 
+var MODE_SUFFIX = {1:"-glyphs", 2:"-syllables", 3:"-latin", 4:"-gloss", 5:""};
+function exportName(){ return slugName() + (MODE_SUFFIX[cardMode()] || ""); }
+
+/* WhatsApp shows transparent pixels as black, and the ink is black, so a
+   mode-1 image pasted or shared there would arrive as a black rectangle.
+   Copy and Share therefore lay mode 1 onto the card colour first. Downloads
+   stay transparent -- they are for pages and print, where that is wanted. */
+function shareBlob(cb){
+  var cv = $("card-canvas");
+  if(cardMode() !== 1){ cv.toBlob(cb); return; }
+  var f = document.createElement("canvas"); f.width = cv.width; f.height = cv.height;
+  var g = f.getContext("2d"); g.fillStyle = cardColors().bg; g.fillRect(0,0,f.width,f.height);
+  g.drawImage(cv, 0, 0); f.toBlob(cb);
+}
+
+on("card-mode", "change", drawCard);
 on("dl-card", "click", function(){
   $("card-canvas").toBlob(function(b){
-    download(b, slugName() + ".png"); setStatus("card PNG downloaded","ok");
+    download(b, exportName() + ".png"); setStatus(cardMode()===1 ? "glyphs PNG downloaded — transparent, cropped tight" : "card PNG downloaded","ok");
   });
 });
 on("copy-card", "click", function(){
@@ -2534,7 +2705,7 @@ on("copy-card", "click", function(){
   /* Safari rejects a clipboard write that happens after an async callback, so
      hand ClipboardItem a promise and keep the write inside the click gesture. */
   var blobPromise = new Promise(function(res, rej){
-    $("card-canvas").toBlob(function(b){ b ? res(b) : rej(new Error("no blob")); });
+    shareBlob(function(b){ b ? res(b) : rej(new Error("no blob")); });
   });
   navigator.clipboard.write([new ClipboardItem({"image/png": blobPromise})])
     .then(function(){ setStatus("copied — paste it into WhatsApp","ok"); })
@@ -2543,9 +2714,19 @@ on("copy-card", "click", function(){
 on("dl-svg", "click", function(){
   try{
     var svg = buildCardSvg();
-    download(new Blob([svg],{type:"image/svg+xml;charset=utf-8"}), slugName() + ".svg");
+    download(new Blob([svg],{type:"image/svg+xml;charset=utf-8"}), exportName() + ".svg");
     setStatus("card SVG downloaded — vector, rescalable for print","ok");
   }catch(e){ setStatus("SVG export failed: " + e.message, "err"); }
+});
+on("dl-syl", "click", function(){
+  try{
+    if(!(selectedGlyph > 0)){ setStatus("tap a syllable in the strip first, then download it","err"); return; }
+    var ti = tokenIndexOfGlyph(selectedGlyph);
+    var svg = buildSyllableSvg(ti, cardMode() >= 2);
+    var lat = (state.latin[ti] || "").trim().replace(/[^a-z0-9]+/gi,"-").replace(/^-+|-+$/g,"").toLowerCase();
+    download(new Blob([svg],{type:"image/svg+xml;charset=utf-8"}), (lat || ("syllable-" + selectedGlyph)) + ".svg");
+    setStatus("syllable SVG downloaded — transparent, cropped tight","ok");
+  }catch(e){ setStatus("syllable export failed: " + e.message, "err"); }
 });
 on("dl-json", "click", function(){
   var r = buildRecord();
@@ -2576,9 +2757,9 @@ on("copy-record", "click", function(){
   if(supported){ var b = $("share-card"); if(b) b.style.display = ""; }
 })();
 on("share-card", "click", function(){
-  $("card-canvas").toBlob(function(blob){
+  shareBlob(function(blob){
     if(!blob){ setStatus("could not prepare the card image","err"); return; }
-    var file = new File([blob], slugName() + ".png", {type:"image/png"});
+    var file = new File([blob], exportName() + ".png", {type:"image/png"});
     if(!(navigator.canShare && navigator.canShare({files:[file]}))){
       setStatus("sharing not available here — use Download instead","err"); return;
     }
